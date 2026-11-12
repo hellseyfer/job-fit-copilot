@@ -56,6 +56,7 @@ src/
 tests/
   JobFit.Api.Tests/
   JobFit.IntegrationTests/
+AGENTS.md                  Rules for AI coding agents
 openspec/                  Specs (source of truth for behavior) and change proposals
 .agents/skills/            OpenSpec workflows for AI coding agents (propose / apply / archive)
 ```
