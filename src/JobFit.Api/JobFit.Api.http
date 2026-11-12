@@ -7,3 +7,11 @@ GET {{JobFit.Api_HostAddress}}/health
 GET {{JobFit.Api_HostAddress}}/alive
 
 ###
+POST {{JobFit.Api_HostAddress}}/api/requirements/extract
+Content-Type: application/json
+
+{
+  "jobPosting": "Senior Backend Engineer at Acme. Requirements: 5+ years of C# and .NET, experience with Docker and PostgreSQL, fluent English. Nice to have: Kubernetes, Terraform."
+}
+
+###

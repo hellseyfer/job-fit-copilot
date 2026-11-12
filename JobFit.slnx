@@ -6,6 +6,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/JobFit.Api.Tests/JobFit.Api.Tests.csproj" />
+    <Project Path="tests/JobFit.Evals/JobFit.Evals.csproj" />
     <Project Path="tests/JobFit.IntegrationTests/JobFit.IntegrationTests.csproj" />
   </Folder>
 </Solution>

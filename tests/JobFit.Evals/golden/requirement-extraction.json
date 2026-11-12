@@ -1,0 +1,20 @@
+[
+  {
+    "name": "backend-dotnet-senior",
+    "jobPosting": "Senior Backend Engineer (.NET)\n\nAcme Payments is looking for a Senior Backend Engineer to join our platform team.\n\nWhat you will do:\n- Design and build APIs for our payment services.\n- Mentor other engineers.\n\nRequirements:\n- 5+ years of professional experience with C# and .NET.\n- Solid experience with PostgreSQL.\n- Experience building REST APIs.\n- Experience with Docker.\n- Fluent English.\n\nNice to have:\n- Kubernetes.\n- Terraform.\n\nWe offer remote work and a learning budget.",
+    "mustHave": ["C#", "PostgreSQL", "REST", "Docker", "English"],
+    "niceToHave": ["Kubernetes", "Terraform"]
+  },
+  {
+    "name": "data-scientist-mid",
+    "jobPosting": "Data Scientist - Mid level\n\nWe are a retail analytics startup. You will build forecasting models and work with product teams.\n\nYou must have:\n- A degree in Computer Science, Statistics or a related field.\n- 3 years of experience with Python.\n- Strong SQL skills.\n- Experience with scikit-learn or similar machine learning libraries.\n\nBonus points for:\n- Experience with Spark.\n- AWS certification.",
+    "mustHave": ["degree", "Python", "SQL", "scikit-learn"],
+    "niceToHave": ["Spark", "AWS"]
+  },
+  {
+    "name": "frontend-junior-es",
+    "jobPosting": "Desarrollador/a Frontend Junior\n\nBuscamos una persona para sumarse a nuestro equipo de producto.\n\nRequisitos:\n- Conocimientos de JavaScript y TypeScript.\n- Experiencia con React.\n- Manejo de Git.\n- Inglés intermedio.\n\nDeseable:\n- Conocimientos de testing con Jest.\n- Experiencia con Figma.",
+    "mustHave": ["TypeScript", "React", "Git", "Inglés"],
+    "niceToHave": ["Jest", "Figma"]
+  }
+]

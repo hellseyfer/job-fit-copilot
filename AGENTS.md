@@ -34,3 +34,8 @@ npx @fission-ai/openspec@2 validate --all --strict
   is not trusted on Linux/CI.
 - `JobFit.Api.Tests` uses an unreachable database on purpose (failure paths without Docker);
   happy paths belong in `JobFit.IntegrationTests`.
+- `JobFit.Api.Tests` replace the model with `FakeChatClient` behind the real pipeline (`UseJobFitPipeline`);
+  tests never need an API key. Real-model checks go in `JobFit.Evals`.
+- The AppHost `http` launch profile needs `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`.
+- Model calls exceed the standard HTTP resilience timeouts (10 s per attempt); the API raises them in
+  `ChatClientRegistration`. Keep that in mind before adding other outgoing HTTP clients.
