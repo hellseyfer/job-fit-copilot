@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/JobFit.Api/JobFit.Api.csproj" />
+    <Project Path="src/JobFit.AppHost/JobFit.AppHost.csproj" />
+    <Project Path="src/JobFit.ServiceDefaults/JobFit.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/JobFit.Api.Tests/JobFit.Api.Tests.csproj" />
+    <Project Path="tests/JobFit.IntegrationTests/JobFit.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

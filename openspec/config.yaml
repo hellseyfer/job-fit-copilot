@@ -1,0 +1,15 @@
+schema: spec-driven
+
+context: |
+  Job Fit Copilot: a portfolio project that analyzes how well a CV fits a job posting
+  using a graph-based agent workflow. Stack: .NET 10, ASP.NET Core Minimal APIs,
+  Aspire (local orchestration + OpenTelemetry), Microsoft Agent Framework workflows,
+  Microsoft.Extensions.AI, Postgres + pgvector.
+  Write all artifacts in English.
+  Every scenario in a spec must be verifiable by an automated test or an eval case.
+
+rules:
+  proposal:
+    - Always state what is out of scope
+  tasks:
+    - Include test tasks for every spec scenario
