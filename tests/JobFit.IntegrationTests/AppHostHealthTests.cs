@@ -12,7 +12,9 @@ public class AppHostHealthTests
         using var cts = new CancellationTokenSource(StartupTimeout);
         var cancellationToken = cts.Token;
 
-        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.JobFit_AppHost>(cancellationToken);
+        // The default provider is OpenAI; health checks never call the model, so any key works.
+        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.JobFit_AppHost>(
+            ["Parameters:openai-api-key=integration-test-key"], cancellationToken);
         await using var app = await appHost.BuildAsync(cancellationToken);
         await app.StartAsync(cancellationToken);
 

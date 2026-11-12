@@ -12,8 +12,8 @@ RAG or a workflow yet.
 - Add `POST /api/requirements/extract`: receives job posting text and returns its title, seniority
   and a list of requirements, each with category, importance (must-have / nice-to-have) and a
   verbatim excerpt of the posting that supports it.
-- Use an LLM with structured output (JSON schema) behind the `IChatClient` abstraction; the provider
-  is selected by configuration.
+- Use an LLM with structured output (JSON schema) behind the `IChatClient` abstraction; OpenAI by default
+  and Ollama as a local alternative, selected by configuration.
 - Ground the output: requirements whose excerpt does not appear in the posting are discarded.
 - Validate input (empty or oversized postings are rejected) and map LLM failures to a clear error.
 - Trace each LLM call with OpenTelemetry (model, latency, token usage) in the Aspire dashboard.
@@ -34,8 +34,9 @@ and Langfuse export (stage 9), persistence of extraction results, authentication
 ## Impact
 
 - New endpoint and feature folder in `JobFit.Api`.
-- AppHost declares the LLM as a resource; the API key is an Aspire secret parameter (user secrets
+- AppHost declares the LLM as a resource: OpenAI by default, Ollama as a local alternative without
+  cost or keys. The OpenAI API key is an Aspire secret parameter (user secrets
   locally, never committed).
-- Dependencies: `Microsoft.Extensions.AI`, the provider adapter (OpenAI by default) and the matching
-  Aspire integrations.
+- Dependencies: `Microsoft.Extensions.AI`, Aspire OpenAI hosting/client integrations and the
+  CommunityToolkit Ollama hosting/OllamaSharp integrations.
 - Unit and API tests use a fake `IChatClient`, so CI needs no LLM credentials.
