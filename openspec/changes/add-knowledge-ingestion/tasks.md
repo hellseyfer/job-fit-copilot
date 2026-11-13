@@ -8,8 +8,8 @@
 ## 2. Chunking and storage
 
 - [ ] 2.1 Implement `MarkdownChunker` (heading section paths, paragraph packing up to 1,500 characters, word-boundary split with overlap); verify unit tests for section paths, documents without headings, the 4,000-character paragraph (max length, overlap, verbatim text) and sequential indexes pass
-- [ ] 2.2 Enable `Pgvector` on the Npgsql data source and implement `KnowledgeStore` with idempotent schema creation on first use, transactional replace, list, get chunks and delete; verify with the integration tests in group 4
-- [ ] 2.3 Implement `KnowledgeIngestionService` (validate, chunk, hash check, batched embedding with count/dimension check, store) and map the four endpoints with 400/404/502 problem details; add examples to `JobFit.Api.http`
+- [ ] 2.2 Enable `Pgvector` on the Npgsql data source, define `KnowledgeChunkRecord` (768-dimension cosine HNSW vector, indexed `DocumentId`/`Kind`) and register the `knowledge_chunks` collection with the SK PgVector connector, created on first use; verify with the integration tests in group 4
+- [ ] 2.3 Implement `KnowledgeIngestionService` (validate, chunk, hash check, batched embedding with count/dimension check, upsert, delete leftovers, get chunks, delete document) and map the three endpoints with 400/404/502 problem details; add examples to `JobFit.Api.http`
 
 ## 3. API tests (fake `IEmbeddingGenerator`, no database)
 
@@ -23,15 +23,14 @@
 
 - [ ] 4.1 Add a pgvector Testcontainers fixture and a `WebApplicationFactory` using it with the fake embedding generator
 - [ ] 4.2 New document returns 201 `created`, and its chunks are listed with embeddings stored
-- [ ] 4.3 Ingested CV and project are both listed with id, kind, title, chunk count, embedding model and ingestion time
-- [ ] 4.4 Markdown `# Experience` / `## Acme` produces a chunk with section `Experience > Acme`
-- [ ] 4.5 Long paragraph is stored as several overlapping chunks of at most 1,500 characters
-- [ ] 4.6 Chunks of an unknown document return 404
-- [ ] 4.7 Changed content returns 200 `updated` and only the new chunks remain
-- [ ] 4.8 Identical document put twice returns `unchanged` and the model is called once
-- [ ] 4.9 Deleting a document returns 204, it is no longer listed and its chunks return 404; deleting an unknown id returns 404
-- [ ] 4.10 Provider error on re-ingestion returns 502 and the previous chunks remain
-- [ ] 4.11 Wrong embedding dimensions return 502 and nothing is stored
+- [ ] 4.3 Markdown `# Experience` / `## Acme` produces a chunk with section `Experience > Acme`
+- [ ] 4.4 Long paragraph is stored as several overlapping chunks of at most 1,500 characters
+- [ ] 4.5 Chunks of an unknown document return 404
+- [ ] 4.6 Changed content returns 200 `updated` and only the new chunks remain
+- [ ] 4.7 Identical document put twice returns `unchanged` and the model is called once
+- [ ] 4.8 Deleting a document returns 204 and its chunks return 404; deleting an unknown id returns 404
+- [ ] 4.9 Provider error on re-ingestion returns 502 and the previous chunks remain
+- [ ] 4.10 Wrong embedding dimensions return 502 and nothing is stored
 
 ## 5. Eval and docs
 

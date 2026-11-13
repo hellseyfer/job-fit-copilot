@@ -11,10 +11,10 @@ belong in `JobFit.IntegrationTests` (AGENTS.md).
 ## Goals / Non-Goals
 
 **Goals:**
-- Store chunks in a shape that stage 3 can search with a single SQL query (cosine distance, filter by
-  document kind) and cite (document, section, text).
+- Store chunks in a shape that stage 3 can search (cosine distance, filter by document or kind) and
+  cite (document, section, text).
 - Same provider-agnostic pattern as stage 1: the ingestion code only sees `IEmbeddingGenerator`.
-- Atomic replacement: a failed ingestion never leaves a document half-replaced.
+- A failed embedding call never changes what is stored.
 
 **Non-Goals:**
 - Search endpoints or relevance tuning (stage 3).
@@ -49,28 +49,33 @@ belong in `JobFit.IntegrationTests` (AGENTS.md).
   overlap. Pure function, fully unit-testable. Alternatives: token-based limits with
   `Microsoft.ML.Tokenizers` (exact but tied to one model's tokenizer); `Microsoft.Extensions.DataIngestion`
   (still preview and more than this needs); LLM-based chunking (cost and non-determinism).
-- **Direct Npgsql + `Pgvector` instead of a vector-store abstraction.** Two tables:
-  `knowledge_documents (id pk, kind, title, content_hash, embedding_model, chunk_count, ingested_at)`
-  and `knowledge_chunks (document_id fk on delete cascade, chunk_index, section, text,
-  embedding vector(768), pk (document_id, chunk_index))` with an HNSW index using
-  `vector_cosine_ops`. Replacing a document (delete chunks, upsert document, insert chunks) runs in
-  one transaction, which gives atomic replacement and the "unchanged on failure" guarantee; listing
-  documents is a plain query. The `Pgvector` plugin is enabled through
+- **`Microsoft.Extensions.VectorData` with the Semantic Kernel PgVector connector.** One collection,
+  `knowledge_chunks`, of a C# record whose attributes define the table: `[VectorStoreKey] Key`
+  (`"{documentId}:{index}"`), indexed data properties `DocumentId` and `Kind`, plus `Title`,
+  `Section`, `Text`, `ChunkIndex`, `ContentHash`, `EmbeddingModel`, `IngestedAt`, and
+  `[VectorStoreVector(768, DistanceFunction = CosineDistance, IndexKind = Hnsw)] Embedding`.
+  Document metadata is repeated on every chunk, so there is no separate documents table. The
+  collection is registered with `AddPostgresVectorStore()` / `AddPostgresCollection<string, …>()`,
+  which reuse the Aspire `NpgsqlDataSource`; `Pgvector` is enabled on it with
   `AddNpgsqlDataSource("jobfit", configureDataSourceBuilder: b => b.UseVector())`.
-  Alternative: `Microsoft.Extensions.VectorData` with the Semantic Kernel PgVector connector; it
-  abstracts the store, but has no cross-collection transactions and no natural place for document
-  metadata, and the SQL is part of what this project should show. Stage 3 can still expose
-  retrieval behind its own interface.
-- **Schema created on first use.** A store initializer runs idempotent DDL (`CREATE EXTENSION IF NOT
-  EXISTS vector`, `CREATE TABLE IF NOT EXISTS`…) once per process before the first knowledge query,
-  not at startup, so the API (and `JobFit.Api.Tests` with its unreachable database) still start
-  without Postgres. Alternative: EF Core migrations; heavier than two tables need for now.
+  Stage 3 searches the same collection with `SearchAsync` and a `DocumentId`/`Kind` filter.
+  Alternative: direct Npgsql + `Pgvector` with `knowledge_documents` and `knowledge_chunks` tables;
+  gives transactional replacement and a document listing, but means hand-written SQL and schema that
+  the abstraction already provides.
+- **Replace by upsert, then delete leftovers.** Chunk keys are deterministic, so re-ingesting upserts
+  keys `0…n-1` and deletes the stored keys of the previous version with index `≥ n` (found with
+  `GetAsync(r => r.DocumentId == id, top)`). Delete removes all keys of the document; 404 when there
+  are none. The `status` and the 201/200 code come from whether chunks existed before.
+- **Collection created on first use.** `EnsureCollectionExistsAsync` runs once per process before the
+  first knowledge query, not at startup, so the API (and `JobFit.Api.Tests` with its unreachable
+  database) still starts without Postgres. Alternative: EF Core migrations; heavier than one
+  collection needs.
 - **Embed before touching the database.** Validation (400) → chunking → content hash check
-  (SHA-256 of kind, title, content and embedding model; equal hash returns `unchanged` with no model
-  call) → one batched embedding call → transaction. Provider failures and mismatches map to 502
+  (SHA-256 of kind, title, content and embedding model, compared with the stored chunks; equal hash
+  returns `unchanged` with no model call) → one batched embedding call → upsert → delete leftovers. Provider failures and mismatches map to 502
   before any write.
 - **Feature folder `Knowledge/` in `JobFit.Api`**: contracts, endpoints, `MarkdownChunker`,
-  `KnowledgeIngestionService`, `KnowledgeStore`, embedding registration.
+  `KnowledgeChunkRecord`, `KnowledgeIngestionService`, embedding and collection registration.
 - **Tests.**
   - `JobFit.Api.Tests`: chunker unit tests; validation scenarios over HTTP (they fail before the
     database is touched) with a `FakeEmbeddingGenerator` that counts calls; the trace scenario with an
@@ -92,11 +97,16 @@ belong in `JobFit.IntegrationTests` (AGENTS.md).
   the hash includes the model, so re-sending after a model change re-embeds.
 - [Shortened OpenAI vectors lose a little quality] → negligible at this corpus size; the eval checks
   the similarity ordering.
-- [Schema created at runtime instead of migrations] → idempotent DDL in one place; migrations can be
-  introduced when the schema changes.
+- [Replacement is not atomic: upsert and delete are separate calls] → embeddings are generated before
+  any write, so only a database failure between the two calls can leave stale chunks; re-sending the
+  document repairs it. Acceptable for a single-user tool.
+- [SK PgVector connector is preview] → it sits behind `VectorStoreCollection`; swapping to direct
+  Npgsql only touches registration and the replace logic.
+- [Collection created at runtime instead of migrations] → the record type is the schema; migrations
+  can be introduced when it changes.
 - [Integration tests need Docker] → same requirement as the existing AppHost integration tests.
 - [Ollama pulls a second model] → `nomic-embed-text` is ~270 MB; the API waits for it like `chat`.
 
 ## Migration Plan
 
-New tables only; nothing existing changes. Rollback is dropping the two tables.
+New collection only; nothing existing changes. Rollback is dropping the `knowledge_chunks` table.

@@ -16,12 +16,7 @@ code 201 for a new document and 200 otherwise.
 #### Scenario: New document is ingested
 - **WHEN** a client puts a CV with id `cv` that did not exist before
 - **THEN** the response status is 201 with status `created` and a `chunkCount` greater than 0
-- **AND** listing the document's chunks returns that number of chunks, each one stored with an embedding
-
-#### Scenario: Document is listed after ingestion
-- **WHEN** a CV and a project have been ingested
-- **THEN** `GET /api/knowledge/documents` returns both, each with its `id`, `kind`, `title`,
-  `chunkCount`, `embeddingModel` and ingestion time
+- **AND** requesting the document's chunks returns that number of chunks, each one stored with an embedding
 
 ### Requirement: Chunks preserve their source and section
 Every chunk SHALL have a zero-based `index` unique within its document, the `section` (the path of
@@ -69,7 +64,7 @@ chunks and responds 204, or 404 when the document does not exist.
 #### Scenario: Existing document is deleted
 - **WHEN** a client deletes an ingested document
 - **THEN** the response status is 204
-- **AND** the document is no longer listed and requesting its chunks returns 404
+- **AND** requesting its chunks returns 404
 
 #### Scenario: Unknown document is deleted
 - **WHEN** a client deletes a document id that does not exist
