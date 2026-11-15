@@ -5,34 +5,26 @@ using Microsoft.Extensions.VectorData;
 
 namespace JobFit.Api.Knowledge;
 
-public sealed class EmbeddingFailedException(string message, Exception? innerException = null)
-    : Exception(message, innerException);
-
 public sealed record IngestionResult(KnowledgeDocumentResponse Document, bool Created);
 
 public sealed class KnowledgeIngestionService(
-    VectorStoreCollection<string, KnowledgeChunkRecord> collection,
+    KnowledgeCollection knowledge,
     IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
-    TimeProvider timeProvider,
-    ILogger<KnowledgeIngestionService> logger)
+    TimeProvider timeProvider)
 {
     // Every chunk holds at least one character of the content, so this bounds the chunks of any valid document.
     private const int MaxChunksPerDocument = KnowledgeEndpoints.MaxContentLength;
 
-    private readonly SemaphoreSlim _collectionLock = new(1, 1);
-    private volatile bool _collectionReady;
-
-    private string EmbeddingModel =>
-        embeddingGenerator.GetService<EmbeddingGeneratorMetadata>()?.DefaultModelId ?? "unknown";
+    private string EmbeddingModel => KnowledgeEmbeddings.ModelOf(embeddingGenerator);
 
     public async Task<IngestionResult> IngestAsync(
         string id, string kind, string title, string content, CancellationToken cancellationToken)
     {
-        await EnsureCollectionAsync(cancellationToken);
+        var collection = await knowledge.GetAsync(cancellationToken);
 
         var embeddingModel = EmbeddingModel;
         var contentHash = Hash(kind, title, embeddingModel, content);
-        var existing = await GetStoredChunksAsync(id, cancellationToken);
+        var existing = await GetStoredChunksAsync(collection, id, cancellationToken);
 
         if (existing.Count > 0 && existing.All(c => c.ContentHash == contentHash))
         {
@@ -42,7 +34,8 @@ public sealed class KnowledgeIngestionService(
         }
 
         var chunks = MarkdownChunker.Chunk(content);
-        var embeddings = await EmbedAsync(title, chunks, cancellationToken);
+        var embeddings = await KnowledgeEmbeddings.GenerateAsync(
+            embeddingGenerator, chunks.Select(chunk => EmbeddingInput(title, chunk)).ToList(), cancellationToken);
         var ingestedAt = timeProvider.GetUtcNow();
 
         var records = chunks.Select((chunk, i) => new KnowledgeChunkRecord
@@ -76,14 +69,14 @@ public sealed class KnowledgeIngestionService(
 
     public async Task<IReadOnlyList<KnowledgeChunkRecord>> GetChunksAsync(string id, CancellationToken cancellationToken)
     {
-        await EnsureCollectionAsync(cancellationToken);
-        return await GetStoredChunksAsync(id, cancellationToken);
+        var collection = await knowledge.GetAsync(cancellationToken);
+        return await GetStoredChunksAsync(collection, id, cancellationToken);
     }
 
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken)
     {
-        await EnsureCollectionAsync(cancellationToken);
-        var existing = await GetStoredChunksAsync(id, cancellationToken);
+        var collection = await knowledge.GetAsync(cancellationToken);
+        var existing = await GetStoredChunksAsync(collection, id, cancellationToken);
         if (existing.Count == 0)
         {
             return false;
@@ -93,43 +86,14 @@ public sealed class KnowledgeIngestionService(
         return true;
     }
 
-    private async Task<List<ReadOnlyMemory<float>>> EmbedAsync(
-        string title, IReadOnlyList<TextChunk> chunks, CancellationToken cancellationToken)
-    {
-        GeneratedEmbeddings<Embedding<float>> generated;
-        try
-        {
-            generated = await embeddingGenerator.GenerateAsync(
-                chunks.Select(chunk => EmbeddingInput(title, chunk)), cancellationToken: cancellationToken);
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new EmbeddingFailedException("The embedding model call failed.", exception);
-        }
-
-        if (generated.Count != chunks.Count)
-        {
-            throw new EmbeddingFailedException(
-                $"The embedding model returned {generated.Count} vectors for {chunks.Count} chunks.");
-        }
-
-        var mismatch = generated.FirstOrDefault(e => e.Vector.Length != KnowledgeChunkRecord.Dimensions);
-        if (mismatch is not null)
-        {
-            throw new EmbeddingFailedException(
-                $"The embedding model returned {mismatch.Vector.Length} dimensions; the store expects {KnowledgeChunkRecord.Dimensions}.");
-        }
-
-        return generated.Select(e => e.Vector).ToList();
-    }
-
     // The header tells the embedding where a chunk comes from; the stored text stays verbatim.
     internal static string EmbeddingInput(string title, TextChunk chunk) =>
         chunk.Section.Length == 0
             ? $"{title}\n\n{chunk.Text}"
             : $"{title} — {chunk.Section}\n\n{chunk.Text}";
 
-    private async Task<List<KnowledgeChunkRecord>> GetStoredChunksAsync(string id, CancellationToken cancellationToken)
+    private static async Task<List<KnowledgeChunkRecord>> GetStoredChunksAsync(
+        VectorStoreCollection<string, KnowledgeChunkRecord> collection, string id, CancellationToken cancellationToken)
     {
         var chunks = new List<KnowledgeChunkRecord>();
         await foreach (var chunk in collection.GetAsync(r => r.DocumentId == id, MaxChunksPerDocument, cancellationToken: cancellationToken))
@@ -138,30 +102,6 @@ public sealed class KnowledgeIngestionService(
         }
 
         return chunks.OrderBy(c => c.ChunkIndex).ToList();
-    }
-
-    // Created on first use rather than at startup, so the API starts without the database.
-    private async Task EnsureCollectionAsync(CancellationToken cancellationToken)
-    {
-        if (_collectionReady)
-        {
-            return;
-        }
-
-        await _collectionLock.WaitAsync(cancellationToken);
-        try
-        {
-            if (!_collectionReady)
-            {
-                await collection.EnsureCollectionExistsAsync(cancellationToken);
-                _collectionReady = true;
-                logger.LogInformation("Knowledge collection {Collection} is ready", KnowledgeChunkRecord.CollectionName);
-            }
-        }
-        finally
-        {
-            _collectionLock.Release();
-        }
     }
 
     private static string Hash(string kind, string title, string embeddingModel, string content) =>
