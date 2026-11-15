@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using JobFit.Api.CoverLetters;
 using JobFit.Api.Fit;
 using JobFit.Api.Requirements;
 
@@ -17,6 +18,7 @@ public sealed record AnalyzeJobResponse(
     ScoreFitResponse Fit,
     AnalysisRoute Route,
     IReadOnlyList<string> Path,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CoverLetter? CoverLetter,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<StudyItem>? StudyPlan);
 
 public sealed class WorkflowOptions
@@ -31,7 +33,8 @@ public sealed record ExtractedStage(ExtractRequirementsResponse Posting, string?
 
 public sealed record FitStage(ExtractRequirementsResponse Posting, ScoreFitResponse Fit);
 
-public sealed record AnalysisOutcome(FitStage Stage, AnalysisRoute Route, IReadOnlyList<StudyItem>? StudyPlan);
+public sealed record AnalysisOutcome(
+    FitStage Stage, AnalysisRoute Route, IReadOnlyList<StudyItem>? StudyPlan, CoverLetter? CoverLetter = null);
 
 public sealed class ExtractionFailedException(Exception innerException)
     : Exception("The chat model could not extract the requirements.", innerException);

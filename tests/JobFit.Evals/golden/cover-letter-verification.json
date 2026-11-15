@@ -1,0 +1,23 @@
+{
+  "comment": "Sentences of a cover letter labeled against fixed CV evidence. Supported claims are backed by their cited evidence; connective sentences are supported only if they state no facts about the candidate.",
+  "evidence": [
+    "Designed and built payment REST APIs in C# with ASP.NET Core on .NET 8. Tuned PostgreSQL queries and indexes, cutting p95 latency from 800 ms to 120 ms.",
+    "Led a team of four engineers and mentored two juniors through code reviews and pairing.",
+    "Containerized legacy services with Docker and moved them to Kubernetes on AWS.",
+    "Spanish (native), English (fluent, C1)."
+  ],
+  "sentences": [
+    { "text": "I am excited to apply for the Senior Backend Engineer role.", "kind": "connective", "evidence": [], "supported": true },
+    { "text": "At Acme I built payment REST APIs in C# on .NET 8.", "kind": "claim", "evidence": [1], "supported": true },
+    { "text": "I cut p95 latency from 800 ms to 120 ms by tuning PostgreSQL queries and indexes.", "kind": "claim", "evidence": [1], "supported": true },
+    { "text": "I led a team of four engineers and mentored two juniors.", "kind": "claim", "evidence": [2], "supported": true },
+    { "text": "I moved legacy services to Kubernetes on AWS after containerizing them with Docker.", "kind": "claim", "evidence": [3], "supported": true },
+    { "text": "I speak fluent English.", "kind": "claim", "evidence": [4], "supported": true },
+    { "text": "I rewrote the payment APIs in Rust to double their throughput.", "kind": "claim", "evidence": [1], "supported": false },
+    { "text": "I led a team of fifteen engineers across three countries.", "kind": "claim", "evidence": [2], "supported": false },
+    { "text": "I hold the Certified Kubernetes Administrator certification.", "kind": "claim", "evidence": [3], "supported": false },
+    { "text": "I speak fluent German.", "kind": "claim", "evidence": [4], "supported": false },
+    { "text": "I also have ten years of experience with Salesforce.", "kind": "connective", "evidence": [], "supported": false },
+    { "text": "Thank you for considering my application.", "kind": "connective", "evidence": [], "supported": true }
+  ]
+}

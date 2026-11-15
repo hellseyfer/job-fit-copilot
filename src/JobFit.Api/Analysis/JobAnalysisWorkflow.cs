@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using JobFit.Api.CoverLetters;
 using JobFit.Api.Evidence;
 using JobFit.Api.Fit;
 using JobFit.Api.Requirements;
@@ -11,15 +12,20 @@ public sealed class JobAnalysisWorkflow(
     RequirementExtractor extractor,
     FitScoringService scoring,
     StudyPlanner planner,
+    CoverLetterWriter writer,
+    CoverLetterVerifier verifier,
     IOptions<WorkflowOptions> options)
 {
     public const string ExtractRequirements = "extract-requirements";
     public const string ScoreFit = "score-fit";
-    public const string StrongFit = "strong-fit";
+    public const string WriteCoverLetter = "write-cover-letter";
+    public const string VerifyCoverLetter = "verify-cover-letter";
+    public const string FinalizeCoverLetter = "finalize-cover-letter";
     public const string PlanStudy = "plan-study";
 
-    //  extract-requirements ──► score-fit ──switch──► strong-fit  (score ≥ threshold)
-    //                                         └────► plan-study  (otherwise)
+    //  extract-requirements ──► score-fit ──switch──► write-cover-letter ──► verify-cover-letter ──switch──► write-cover-letter    (rewrite due)
+    //                                         │      (score ≥ threshold)                              └──► finalize-cover-letter (otherwise)
+    //                                         └────► plan-study (otherwise)
     public Workflow Build()
     {
         var threshold = options.Value.FitThreshold;
@@ -56,9 +62,15 @@ public sealed class JobAnalysisWorkflow(
             },
             ScoreFit);
 
-        var strong = ExecutorBindingExtensions.BindAsExecutor<FitStage, AnalysisOutcome>(
-            stage => new AnalysisOutcome(stage, AnalysisRoute.StrongFit, null),
-            StrongFit);
+        var write = new WriteCoverLetterExecutor(writer);
+
+        var verify = ExecutorBindingExtensions.BindAsExecutor<LetterDraft, LetterDraft>(
+            async (draft, _, cancellationToken) => await verifier.VerifyAsync(draft, cancellationToken),
+            VerifyCoverLetter);
+
+        var finalize = ExecutorBindingExtensions.BindAsExecutor<LetterDraft, AnalysisOutcome>(
+            draft => new AnalysisOutcome(draft.Stage, AnalysisRoute.StrongFit, null, CoverLetterGrounding.Finalize(draft)),
+            FinalizeCoverLetter);
 
         var plan = ExecutorBindingExtensions.BindAsExecutor<FitStage, AnalysisOutcome>(
             async (stage, _, cancellationToken) => new AnalysisOutcome(
@@ -69,9 +81,13 @@ public sealed class JobAnalysisWorkflow(
             .WithName("job-analysis")
             .AddEdge(extract, score)
             .AddSwitch(score, route => route
-                .AddCase<FitStage>(stage => IsStrongFit(stage!.Fit.Score, threshold), [strong])
+                .AddCase<FitStage>(stage => IsStrongFit(stage!.Fit.Score, threshold), [write])
                 .WithDefault([plan]))
-            .WithOutputFrom(strong, plan)
+            .AddEdge(write, verify)
+            .AddSwitch(verify, loop => loop
+                .AddCase<LetterDraft>(draft => draft!.RewriteDue, [write])
+                .WithDefault([finalize]))
+            .WithOutputFrom(finalize, plan)
             .WithOpenTelemetry()
             .Build();
     }
@@ -112,7 +128,14 @@ public sealed class JobAnalysisWorkflow(
 
         var posting = outcome.Stage.Posting;
         return new AnalyzeJobResponse(
-            posting.Title, posting.Seniority, posting.Requirements, outcome.Stage.Fit, outcome.Route, path, outcome.StudyPlan);
+            posting.Title,
+            posting.Seniority,
+            posting.Requirements,
+            outcome.Stage.Fit,
+            outcome.Route,
+            path,
+            outcome.CoverLetter,
+            outcome.StudyPlan);
     }
 
     // Executors fail inside the workflow runtime; surface the original exception so the endpoint can map it.
@@ -125,5 +148,14 @@ public sealed class JobAnalysisWorkflow(
         }
 
         ExceptionDispatchInfo.Throw(exception ?? new InvalidOperationException("The job analysis workflow failed."));
+    }
+
+    // The writer takes the scored posting for the first draft and a verified draft for each rewrite.
+    private sealed class WriteCoverLetterExecutor(CoverLetterWriter writer) : Executor(WriteCoverLetter)
+    {
+        protected override ProtocolBuilder ConfigureProtocol(ProtocolBuilder protocolBuilder) =>
+            protocolBuilder.ConfigureRoutes(routes => routes
+                .AddHandler<FitStage, LetterDraft>((stage, _, cancellationToken) => new ValueTask<LetterDraft>(writer.WriteAsync(stage, cancellationToken)))
+                .AddHandler<LetterDraft, LetterDraft>((draft, _, cancellationToken) => new ValueTask<LetterDraft>(writer.RewriteAsync(draft, cancellationToken))));
     }
 }
