@@ -26,7 +26,7 @@ npx @fission-ai/openspec@2 validate --all --strict
 - New services call `builder.AddServiceDefaults()` and `app.MapDefaultEndpoints()`.
 - Infrastructure (databases, containers) is declared in `src/JobFit.AppHost/AppHost.cs`, never hard-coded.
 - LLM access goes through `Microsoft.Extensions.AI` abstractions (`IChatClient`, `IEmbeddingGenerator`), never a vendor SDK directly.
-- Vector storage goes through `Microsoft.Extensions.VectorData` (SK PgVector connector); records live next to their feature.
+- Vector storage goes through `Microsoft.Extensions.VectorData` (`CommunityToolkit.VectorData.PgVector`, the renamed SK connector); records live next to their feature.
 - Never commit secrets; use user secrets or Aspire parameters.
 
 ## Gotchas
@@ -40,7 +40,9 @@ npx @fission-ai/openspec@2 validate --all --strict
 - The AppHost `http` launch profile needs `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`.
 - Model calls exceed the standard HTTP resilience timeouts (10 s per attempt); the API raises them in
   `ChatClientRegistration`. Keep that in mind before adding other outgoing HTTP clients.
+- `Microsoft.Agents.AI.Workflows` raises `Microsoft.Extensions.VectorData.Abstractions`; the deprecated
+  `Microsoft.SemanticKernel.Connectors.*` vector connectors fail against it at runtime (`MissingMethodException`).
 - Each model connection (`chat`, `embeddings`) is a separate Aspire model resource; the API registers the
   embeddings client as a keyed client so it does not replace the chat client.
 - The vector store needs pgvector types on the Aspire `NpgsqlDataSource`: `UseVector()` (namespace `Npgsql`,
-  from the `Pgvector` package) in `Program.cs`. The SK connector creates the extension and the table on first use.
+  from the `Pgvector` package) in `Program.cs`. The connector creates the extension and the table on first use.

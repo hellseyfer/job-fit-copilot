@@ -53,6 +53,15 @@ Content-Type: application/json
 }
 
 ###
+POST {{JobFit.Api_HostAddress}}/api/analyses
+Content-Type: application/json
+
+{
+  "jobPosting": "Senior Backend Engineer at Acme. Requirements: 5+ years of C# and .NET, PostgreSQL, production Rust. Nice to have: Kubernetes.",
+  "kind": "cv"
+}
+
+###
 DELETE {{JobFit.Api_HostAddress}}/api/knowledge/documents/cv
 
 ###

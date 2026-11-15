@@ -19,6 +19,9 @@ public static class Extensions
     private const string AlivenessEndpointPath = "/alive";
 
     // Default ActivitySource of Microsoft.Extensions.AI's OpenTelemetryChatClient.
+    // Microsoft Agent Framework workflow runs and executors.
+    public const string WorkflowTraceSource = "Microsoft.Agents.AI.Workflows";
+
     private const string GenAiTraceSource = "Experimental.Microsoft.Extensions.AI";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
@@ -66,6 +69,7 @@ public static class Extensions
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
                     .AddSource(GenAiTraceSource)
+                    .AddSource(WorkflowTraceSource)
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>

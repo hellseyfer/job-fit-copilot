@@ -1,0 +1,11 @@
+{
+  "comment": "A posting the CV in evidence-retrieval.json fits poorly: most requirements are not supported, so the workflow takes the weak-fit route.",
+  "requirements": [
+    { "id": "req-1", "description": "Production experience with Rust", "importance": "must-have" },
+    { "id": "req-2", "description": "Salesforce administration and Apex development", "importance": "must-have" },
+    { "id": "req-3", "description": "Fluent German", "importance": "must-have" },
+    { "id": "req-4", "description": "PhD in Machine Learning", "importance": "nice-to-have" },
+    { "id": "req-5", "description": "Building mobile apps with Swift for iOS", "importance": "nice-to-have" },
+    { "id": "req-6", "description": "Experience optimizing PostgreSQL performance", "importance": "must-have" }
+  ]
+}
