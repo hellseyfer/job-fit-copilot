@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
@@ -47,7 +46,7 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
     private Func<string>? _judge;
     private Func<string, string>? _planner;
     private Func<string>? _writer;
-    private Func<int, string, string>? _verifier;
+    private Func<string, string>? _verifier;
 
     private const string Letter = """
         {"sentences":[
@@ -92,7 +91,7 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         var cited = Assert.Single(letter["sentences"]![1]!["evidence"]!.AsArray());
         Assert.Contains("PostgreSQL", cited!["text"]!.GetValue<string>());
         Assert.Equal(1, _writerCalls);
-        Assert.Equal(1, _verifierCalls);
+        Assert.Equal(3, _verifierCalls);
     }
 
     [Fact]
@@ -100,7 +99,7 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
     {
         await PutAsync(NewId(), "cv", Cv);
         _extraction = Extraction(("PostgreSQL", "must-have"), ("Kubernetes", "nice-to-have"));
-        _verifier = (call, prompt) => call == 1 ? Verdicts(prompt, rejected: 3) : Verdicts(prompt);
+        _verifier = prompt => _writerCalls == 1 ? Check(prompt, rejectRust: true) : Check(prompt);
 
         var body = await AnalyzeAsync(new { jobPosting = Posting });
 
@@ -119,7 +118,7 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
     {
         await PutAsync(NewId(), "cv", Cv);
         _extraction = Extraction(("PostgreSQL", "must-have"), ("Kubernetes", "nice-to-have"));
-        _verifier = (_, prompt) => Verdicts(prompt, rejected: 3);
+        _verifier = prompt => Check(prompt, rejectRust: true);
 
         var body = await AnalyzeAsync(new { jobPosting = Posting });
 
@@ -149,7 +148,7 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         }
         else
         {
-            _verifier = (_, _) => fail();
+            _verifier = _ => fail();
         }
 
         using var response = await PostAsync(new { jobPosting = Posting });
@@ -274,14 +273,11 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         Assert.All(chat, c => Assert.Equal(run.TraceId, c.TraceId));
     }
 
-    // Supports every sentence in the verifier prompt except the rejected one.
-    private static string Verdicts(string prompt, int rejected = 0)
-    {
-        var verdicts = Regex.Matches(prompt, "<sentence n=\"(\\d+)\"").Select(m => int.Parse(m.Groups[1].Value)).Select(n => n == rejected
-            ? $$"""{"sentence":{{n}},"reason":"Rust is not in the evidence.","supported":false}"""
-            : $$"""{"sentence":{{n}},"reason":"Shown.","supported":true}""");
-        return $$"""{"verdicts":[{{string.Join(",", verdicts)}}]}""";
-    }
+    // Supports the checked sentence unless it is about Rust and Rust is rejected.
+    private static string Check(string prompt, bool rejectRust = false) =>
+        rejectRust && prompt.Contains("Rust", StringComparison.Ordinal)
+            ? """{"quote":"","reason":"Rust is not in the evidence.","verdict":"unsupported"}"""
+            : """{"quote":"PostgreSQL","reason":"Shown.","verdict":"supported"}""";
 
     private static string Extraction(params (string Skill, string Importance)[] requirements)
     {
@@ -316,10 +312,10 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
             return _writer?.Invoke() ?? Letter;
         }
 
-        if (system.StartsWith("You check a cover letter", StringComparison.Ordinal))
+        if (system.StartsWith("You check one sentence of a cover letter", StringComparison.Ordinal))
         {
-            var call = Interlocked.Increment(ref _verifierCalls);
-            return _verifier?.Invoke(call, prompt) ?? Verdicts(prompt);
+            Interlocked.Increment(ref _verifierCalls);
+            return _verifier?.Invoke(prompt) ?? Check(prompt);
         }
 
         if (system.StartsWith("You write a study plan", StringComparison.Ordinal))

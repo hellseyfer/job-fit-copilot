@@ -98,7 +98,7 @@ public class CoverLetterVerifierTests
     [Fact]
     public async Task Uncited_claim_is_unsupported_without_a_verifier_call()
     {
-        var chat = FakeChatClient.Returning("""{"verdicts":[]}""");
+        var chat = FakeChatClient.Returning("""{"quote":"","reason":"x","verdict":"supported"}""");
         var draft = CoverLetterGroundingTests.Draft(1, null) with
         {
             Sentences = [new LetterSentence("I am an expert in everything.", SentenceKind.Claim, [])],
@@ -113,12 +113,29 @@ public class CoverLetterVerifierTests
     [Fact]
     public async Task Sentence_without_a_verdict_is_unsupported()
     {
-        var chat = FakeChatClient.Returning("""{"verdicts":[{"sentence":1,"reason":"Shown.","supported":true}]}""");
+        var chat = FakeChatClient.Responding(messages => messages.Last().Text.Contains("Rust", StringComparison.Ordinal)
+            ? """{"quote":"","reason":"Unsure."}"""
+            : """{"quote":"Tuned PostgreSQL.","reason":"Shown.","verdict":"supported"}""");
 
         var verified = await new CoverLetterVerifier(chat).VerifyAsync(CoverLetterGroundingTests.Draft(1, null), CancellationToken.None);
 
         Assert.Equal([true, false], verified.Verdicts!.Select(v => v.Supported));
         Assert.Equal(CoverLetterVerifier.NotJudged, verified.Verdicts![1].Reason);
+        Assert.Equal(2, chat.CallCount);
+    }
+
+    [Fact]
+    public async Task Each_sentence_is_checked_with_only_its_cited_evidence()
+    {
+        var chat = FakeChatClient.Returning("""{"quote":"","reason":"Shown.","verdict":"supported"}""");
+        var draft = CoverLetterGroundingTests.Draft(1, null) with
+        {
+            Evidence = [CoverLetterGroundingTests.Draft(1, null).Evidence[0], new EvidenceItem("cv", "cv", "CV", "Skills", 5, "Knows Go.", 0.5)],
+            Sentences = [new LetterSentence("I tuned PostgreSQL.", SentenceKind.Claim, [1])],
+        };
+
+        await new CoverLetterVerifier(chat).VerifyAsync(draft, CancellationToken.None);
+
         Assert.Equal(1, chat.CallCount);
     }
 

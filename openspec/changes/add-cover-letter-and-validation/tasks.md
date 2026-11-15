@@ -3,14 +3,14 @@
 - [x] 1.1 Add `CoverLetters/` contracts (`LetterDraft`, `CoverLetter`, sentence and verdict outputs) and `CoverLetterFailedException`
 - [x] 1.2 Add evidence numbering and citation grounding (`CoverLetterGrounding`)
 - [x] 1.3 Add `CoverLetterWriter` (first draft and rewrite with feedback) with structured output and delimiters
-- [x] 1.4 Add `CoverLetterVerifier`: uncited claims unsupported without a call, one call for the rest, missing verdicts unsupported
+- [x] 1.4 Add `CoverLetterVerifier`: uncited claims unsupported without a call, one call per remaining sentence with its cited evidence, missing verdicts unsupported
 - [x] 1.5 Replace `strong-fit` in `JobAnalysisWorkflow` with write → verify → (rewrite | finalize), add `coverLetter` to the response and map failures to 502
 
 ## 2. API tests
 
 - [x] 2.1 Evidence numbering: only met/partial citations, distinct chunks, numbered from 1
 - [x] 2.2 Citation resolution: out-of-range and duplicate numbers dropped
-- [x] 2.3 Uncited claim is unsupported and not sent to the verifier; missing verdict is unsupported
+- [x] 2.3 Uncited claim is unsupported and not sent to the verifier; one call per sentence with its evidence; missing verdict is unsupported
 - [x] 2.4 Loop decision: rewrite due only while unsupported and fewer than 3 drafts; finalize removes unsupported sentences
 
 ## 3. Integration tests (pgvector)

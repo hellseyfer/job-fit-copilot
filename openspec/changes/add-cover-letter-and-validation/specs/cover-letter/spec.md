@@ -16,9 +16,9 @@ a `kind` (`claim` about the candidate, or `connective`) and the evidence numbers
 
 ### Requirement: Cover letter verification
 The system SHALL treat a `claim` with no valid citation as unsupported without asking the verifier, and SHALL
-ask the chat model, in one structured call per draft, whether each remaining sentence is supported: a claim
-must be backed by its cited evidence, and a connective sentence must state no facts about the candidate. A
-sentence the verifier does not judge SHALL count as unsupported.
+ask the chat model, in one structured call per remaining sentence with only that sentence's cited evidence,
+whether it is supported: a claim must be backed by its cited evidence, and a connective sentence must state no
+facts about the candidate. A sentence the verifier returns no verdict for SHALL count as unsupported.
 
 #### Scenario: Claim without citation
 - **WHEN** the writer returns a claim with no valid evidence number
@@ -28,8 +28,12 @@ sentence the verifier does not judge SHALL count as unsupported.
 - **WHEN** the verifier judges that a claim is not backed by its cited evidence
 - **THEN** that sentence is unsupported with the verifier's reason
 
+#### Scenario: One check per sentence
+- **WHEN** a draft has two cited claims and one connective sentence
+- **THEN** the verifier is called three times, each time with only the evidence that sentence cites
+
 #### Scenario: Missing verdict
-- **WHEN** the verifier output omits the verdict for one sentence
+- **WHEN** the verifier output for one sentence has no verdict
 - **THEN** that sentence is unsupported
 
 #### Scenario: Verifier eval

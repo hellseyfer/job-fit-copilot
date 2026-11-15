@@ -30,16 +30,19 @@ in the traces. Non-goals: style control, a standalone endpoint, human approval (
   in assessment order, numbered from 1. The writer prompt lists the requirements with the numbers of their
   evidence, and the evidence items once each.
 - **Structured outputs.** Writer: `{ sentences: [{ text, kind: "claim" | "connective", evidence: int[] }] }`.
-  Verifier: `{ verdicts: [{ sentence: int, supported: bool, reason }] }`. Both at temperature 0 with JSON schema,
+  Verifier, per sentence: `{ quote, reason, verdict: "supported" | "unsupported" }`. Both at temperature 0 with JSON schema,
   like the extractor and the judge; reasons come before decisions in the schema for small models.
 - **Deterministic grounding first.** Out-of-range numbers are dropped and duplicates removed; a claim left
   without citations is unsupported ("cites no evidence") and is not sent to the verifier, which only sees the
-  remaining sentences with their cited evidence. Connective sentences are verified too, so labelling a claim
+  remaining sentences, each with its own cited evidence. Connective sentences are verified too, so labelling a claim
   as connective does not bypass the check. A missing verdict counts as unsupported (fail closed).
-- **One verifier call per draft**, not per sentence: a letter has ~6–10 sentences and the evidence is shared;
-  the per-sentence verdicts keep the output inspectable.
-- **Bounded loop: 3 drafts at most** (1 write + 2 rewrites), then unsupported sentences are removed. Worst case
-  6 chat calls; the common case is 2. The response reports `attempts` and `removed`.
+- **One verifier call per sentence** (at most 4 at a time), with only that sentence's cited evidence. A single call
+  for the whole draft was tried first: on the labeled verifier eval `qwen2.5:3b` scored 0.42 (every sentence
+  `unsupported` with a boolean field, then near-random with a `verdict` string). Small prompts per item are what
+  made the fit judge work, and they also make each verdict independent of the rest of the letter. The verdict comes
+  after a `quote` from the evidence and a `reason`, so the model looks at the evidence before deciding.
+- **Bounded loop: 3 drafts at most** (1 write + 2 rewrites), then unsupported sentences are removed. Each draft
+  costs 1 writer call plus one verifier call per sentence (about 6–10); the common case is a single draft. The response reports `attempts` and `removed`.
 - **Response.** `coverLetter { text, sentences: [{ text, evidence: EvidenceItem[] }], removed: [{ text, reason }], attempts }`;
   `text` joins the kept sentences with spaces. Absent on `weak-fit` (`JsonIgnore` when null), like `studyPlan`.
 - **Errors.** `CoverLetterFailedException` (model error, invalid structure, empty draft) → 502 through the
@@ -54,4 +57,5 @@ in the traces. Non-goals: style control, a standalone endpoint, human approval (
   deterministic citation check does not depend on it.
 - Removing sentences can leave a choppy letter; the client gets `removed` to decide, and stage 6 adds human
   approval.
-- Latency on CPU Ollama grows by 2–6 calls; acceptable for a demo, measured in the end-to-end run.
+- Latency and cost grow with the letter length (one verifier call per sentence per draft); acceptable for a demo,
+  measured in the end-to-end run.

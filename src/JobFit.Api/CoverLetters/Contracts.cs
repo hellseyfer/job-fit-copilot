@@ -34,10 +34,10 @@ public sealed record WrittenLetter(IReadOnlyList<WrittenSentence?>? Sentences);
 
 public sealed record WrittenSentence(string? Text, SentenceKind? Kind, IReadOnlyList<int>? Evidence);
 
-public sealed record VerifiedLetter(IReadOnlyList<VerifiedSentence?>? Verdicts);
+public enum Verdict { Supported, Unsupported }
 
-// Reason comes before the decision so the model explains before it decides.
-public sealed record VerifiedSentence(int? Sentence, string? Reason, bool? Supported);
+// The quote and reason come before the verdict so the model looks at the evidence before it decides.
+public sealed record SentenceCheck(string? Quote, string? Reason, Verdict? Verdict);
 
 public sealed class CoverLetterFailedException(string message, Exception? innerException = null)
     : Exception(message, innerException);

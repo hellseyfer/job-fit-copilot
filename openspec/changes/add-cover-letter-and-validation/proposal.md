@@ -16,8 +16,8 @@ with an enforced anti-hallucination loop, so every claim about the candidate is 
   and returns the letter as sentences, each marked `claim` or `connective` with the evidence numbers it uses.
 - Deterministic checks in code: a `claim` without a valid evidence number is unsupported without asking the
   verifier; citations outside the numbered evidence are dropped.
-- An LLM verifier checks every sentence in one call: a claim must be supported by its cited evidence, and a
-  connective sentence must not state facts about the candidate.
+- An LLM verifier checks each remaining sentence in its own call, with only its cited evidence: a claim must be
+  supported by that evidence, and a connective sentence must not state facts about the candidate.
 - Sentences still unsupported after the last rewrite are removed from the letter and reported with the reason.
 - The analysis response gains a `coverLetter` (text, sentences with their cited evidence, removed sentences,
   attempts), present only on the `strong-fit` route; `route` values and the `weak-fit` route are unchanged.
@@ -41,7 +41,7 @@ with an enforced anti-hallucination loop, so every claim about the candidate is 
 - Tests: API tests for grounding and loop decisions, integration tests for the loop through the graph,
   evals for the verifier and the letter.
 - Docs: README endpoint description and graph.
-- Cost: a strong fit now costs 2 to 6 extra chat calls (1–3 writes, 1–3 verifications).
+- Cost: a strong fit now costs one writer call plus one verifier call per sentence for each draft (1–3 drafts).
 
 ## Out of scope
 

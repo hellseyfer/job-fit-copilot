@@ -113,7 +113,7 @@ calls in the same trace.
 
 The cover letter is written only from the evidence the judge cited for `met` and `partial` requirements, as
 sentences marked `claim` or `connective` with evidence numbers. A claim without a valid citation is rejected in
-code; an LLM verifier then checks every other sentence against its cited evidence (connective sentences must state
+code; an LLM verifier then checks every other sentence, one call each, against its cited evidence (connective sentences must state
 no facts about the candidate). Rejected sentences go back to the writer with the reason, at most twice; whatever
 is still unsupported after the third draft is removed and listed in `coverLetter.removed`.
 
