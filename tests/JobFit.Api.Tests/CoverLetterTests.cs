@@ -46,6 +46,11 @@ public class CoverLetterGroundingTests
     }
 
     [Fact]
+    public void Sentence_with_an_undefined_kind_fails() =>
+        Assert.Throws<CoverLetterFailedException>(() => CoverLetterGrounding.Sentences(
+            new WrittenLetter([new WrittenSentence("I know Go.", (SentenceKind)7, [1])]), 3));
+
+    [Fact]
     public void Draft_without_sentences_fails() =>
         Assert.Throws<CoverLetterFailedException>(() => CoverLetterGrounding.Sentences(new WrittenLetter([]), 3));
 
@@ -146,10 +151,12 @@ public class CoverLetterVerifierTests
         Assert.DoesNotContain("Knows Go.", prompt);
     }
 
-    [Fact]
-    public async Task Invalid_verifier_output_fails()
+    [Theory]
+    [InlineData("Looks good to me.")]
+    [InlineData("""{"quote":"","reason":"Shown.","verdict":7}""")]
+    public async Task Invalid_verifier_output_fails(string output)
     {
-        var verifier = new CoverLetterVerifier(FakeChatClient.Returning("Looks good to me."));
+        var verifier = new CoverLetterVerifier(FakeChatClient.Returning(output));
 
         await Assert.ThrowsAsync<CoverLetterFailedException>(() =>
             verifier.VerifyAsync(CoverLetterGroundingTests.Draft(1, null), CancellationToken.None));

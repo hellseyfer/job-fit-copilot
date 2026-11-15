@@ -60,7 +60,8 @@ public sealed class CoverLetterVerifier(IChatClient chatClient)
             throw new CoverLetterFailedException("The cover letter verifier call failed.", exception);
         }
 
-        if (!response.TryGetResult(out var check) || check is null)
+        if (!response.TryGetResult(out var check) || check is null
+            || check.Verdict is { } undefined && !Enum.IsDefined(undefined))
         {
             throw new CoverLetterFailedException("The cover letter verifier output does not match the expected structure.");
         }
