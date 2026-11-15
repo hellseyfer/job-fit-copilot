@@ -4,7 +4,7 @@ using JobFit.Api.Fit;
 using JobFit.Api.Knowledge;
 using JobFit.Api.Requirements;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.SemanticKernel.Connectors.InMemory;
+using CommunityToolkit.VectorData.InMemory;
 using Xunit.Abstractions;
 
 namespace JobFit.Evals;

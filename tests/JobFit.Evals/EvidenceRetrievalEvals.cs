@@ -2,7 +2,7 @@ using System.Text.Json;
 using JobFit.Api.Evidence;
 using JobFit.Api.Knowledge;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.SemanticKernel.Connectors.InMemory;
+using CommunityToolkit.VectorData.InMemory;
 using Xunit.Abstractions;
 
 namespace JobFit.Evals;

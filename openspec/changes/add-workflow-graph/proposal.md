@@ -19,7 +19,8 @@ so later stages (cover letter, human approval) are new nodes and edges instead o
   the study plan (only on the weak-fit route).
 - The workflow emits OpenTelemetry spans per run and per executor, with the existing GenAI spans nested.
 - New dependency `Microsoft.Agents.AI.Workflows` (1.28.0, GA); `Microsoft.Extensions.AI` is raised to the
-  version it requires.
+  version it requires, and the deprecated SK PgVector connector is replaced by its renamed successor
+  `CommunityToolkit.VectorData.PgVector`, which works with the VectorData version the workflows package needs.
 - Existing endpoints (`/api/requirements/extract`, `/api/evidence/search`, `/api/fit/score`) are unchanged.
 
 ## Capabilities

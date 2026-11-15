@@ -7,6 +7,13 @@ Stages 1–3b expose extraction (`RequirementExtractor`), retrieval (`EvidenceRe
 Microsoft Agent Framework Workflows (`Microsoft.Agents.AI.Workflows`, GA since 1.x; this change uses
 1.28.0, which requires `Microsoft.Extensions.AI` 10.11.0, so the API project moves from 10.10.0).
 
+It also raises `Microsoft.Extensions.VectorData.Abstractions` to 10.10.0. The stage 2 connector
+`Microsoft.SemanticKernel.Connectors.PgVector` 1.74.0-preview is deprecated (renamed, with no SK dependency, to
+`CommunityToolkit.VectorData.PgVector`, stable v1) and fails at runtime against that version
+(`MissingMethodException` on `VectorSearchOptions.OldFilter`), so this change moves to
+`CommunityToolkit.VectorData.PgVector` 1.0.2 (and `CommunityToolkit.VectorData.InMemory` in the evals): same types,
+same VectorData abstraction, no code change beyond a `using`.
+
 ## Goals / Non-goals
 
 Goals: a real graph (executors, edges, a conditional switch) that later stages extend with nodes; reuse

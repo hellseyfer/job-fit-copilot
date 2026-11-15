@@ -7,7 +7,7 @@ and drafts a cover letter that a human approves before it is used.
 Built as a production-minded portfolio project: spec-driven development, observability from day one,
 health probes, automated tests and evals in CI.
 
-> Status: **stage 3b — fit scoring**. See the [roadmap](#roadmap).
+> Status: **stage 4 — workflow graph**. See the [roadmap](#roadmap).
 
 ## Stack
 
@@ -16,9 +16,9 @@ health probes, automated tests and evals in CI.
 | Runtime / API | .NET 10, ASP.NET Core Minimal APIs |
 | Local orchestration & telemetry | [Aspire](https://aspire.dev) + OpenTelemetry |
 | Database / vectors | Postgres with pgvector |
-| Agent workflow (planned) | Microsoft Agent Framework workflows |
+| Agent workflow | Microsoft Agent Framework workflows (`Microsoft.Agents.AI.Workflows`) |
 | LLM abstraction | Microsoft.Extensions.AI (`IChatClient`, `IEmbeddingGenerator`): OpenAI by default, Ollama as a free local alternative |
-| Vector store | Microsoft.Extensions.VectorData with the Semantic Kernel PgVector connector |
+| Vector store | Microsoft.Extensions.VectorData with the PgVector connector (`CommunityToolkit.VectorData.PgVector`, formerly the Semantic Kernel connector) |
 | Spec-driven development | [OpenSpec](https://github.com/Fission-AI/OpenSpec) |
 | CI | GitHub Actions |
 
@@ -62,6 +62,7 @@ dotnet run --project src/JobFit.AppHost -- --Llm:Model gpt-4.1-mini
 | `DELETE /api/knowledge/documents/{id}` | Remove a document and its chunks |
 | `POST /api/evidence/search` | Requirements (`id`, `description`) → the most similar stored chunks per requirement, with citation and cosine `score`. Optional `kind` and `top` (1–10, default 3) |
 | `POST /api/fit/score` | Requirements (`id`, `description`, `importance`) → per-requirement `met` / `partial` / `missing` judged by the LLM with cited evidence, plus a 0–100 `score`, `strengths`, `partial` and `gaps`. Optional `kind` |
+| `POST /api/analyses` | Job posting → the whole workflow graph: extraction, fit scoring and, on a weak fit, a study plan. Returns the posting, `fit`, `route` (`strong-fit` / `weak-fit`), the executed node `path` and `studyPlan`. Optional `kind` |
 
 Example request in [`src/JobFit.Api/JobFit.Api.http`](src/JobFit.Api/JobFit.Api.http):
 
@@ -96,6 +97,19 @@ without evidence are `missing` without calling the model. The score is computed 
 Invalid input (the evidence rules plus `importance`) returns 400 without calling a model; embedding or chat
 errors and invalid judge output return 502 with no partial result.
 
+`POST /api/analyses` runs a Microsoft Agent Framework workflow:
+
+```
+extract-requirements ──► score-fit ──switch──► strong-fit   (score ≥ Workflow:FitThreshold, default 70)
+                                        └────► plan-study   (otherwise)
+```
+
+Each node wraps an existing service. `plan-study` sends only the `missing` and `partial` requirements (with the
+judge rationale) to the LLM and keeps one item (`focus`, `steps`) per such requirement, must-haves first; items
+for other requirements are dropped. Invalid input returns 400, a posting with 0 or more than 50 requirements
+422, and any model failure 502. Runs and nodes are traced (`invoke_workflow`, `executor.process`) with the model
+calls in the same trace.
+
 ## Tests
 
 ```bash
@@ -105,11 +119,11 @@ dotnet test JobFit.slnx
 - `tests/JobFit.Api.Tests` — in-memory host with an unreachable database and fake models (`IChatClient`,
   `IEmbeddingGenerator`); fast, no Docker, no API key.
 - `tests/JobFit.IntegrationTests` — boots the whole AppHost with a real Postgres container, and runs knowledge
-  ingestion, evidence search and fit scoring against a pgvector Testcontainers database with fake models (requires Docker).
+  ingestion, evidence search, fit scoring and the analysis workflow against a pgvector Testcontainers database with fake models (requires Docker).
 - `tests/JobFit.Evals` — runs the extractor against a real model over a golden set of job postings and
   reports must-have recall, checks the embedding model (768 dimensions, related text ranks closer), and
-  measures evidence recall@3 and the fit judge's accuracy on a golden CV with supported and unsupported
-  requirements (in-memory vector store, no database).
+  measures evidence recall@3, the fit judge's accuracy on a golden CV with supported and unsupported
+  requirements, and how many gaps of a weak fit get a study item (in-memory vector store, no database).
   Skipped unless a model is configured:
 
 ```bash
@@ -126,7 +140,7 @@ OLLAMA_ENDPOINT=http://localhost:11434 dotnet test tests/JobFit.Evals --logger "
 src/
   JobFit.AppHost/          Aspire app model: API + Postgres + language model (OpenAI or Ollama)
   JobFit.ServiceDefaults/  OpenTelemetry, health checks, resilience, service discovery
-  JobFit.Api/              HTTP API (feature folders: Requirements/, Knowledge/, Evidence/, Fit/)
+  JobFit.Api/              HTTP API (feature folders: Requirements/, Knowledge/, Evidence/, Fit/, Analysis/)
 tests/
   JobFit.Api.Tests/
   JobFit.IntegrationTests/
