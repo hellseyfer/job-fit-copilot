@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using JobFit.Api.Fit;
 using JobFit.Api.Requirements;
 
@@ -16,7 +17,7 @@ public sealed record AnalyzeJobResponse(
     ScoreFitResponse Fit,
     AnalysisRoute Route,
     IReadOnlyList<string> Path,
-    IReadOnlyList<StudyItem>? StudyPlan);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<StudyItem>? StudyPlan);
 
 public sealed class WorkflowOptions
 {

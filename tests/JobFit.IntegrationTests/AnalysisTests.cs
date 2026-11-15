@@ -65,7 +65,7 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         Assert.Equal("strong-fit", body["route"]!.GetValue<string>());
         Assert.Equal(["extract-requirements", "score-fit", "strong-fit"], Path(body));
         Assert.Equal(100, body["fit"]!["score"]!.GetValue<int>());
-        Assert.Null(body["studyPlan"]);
+        Assert.False(body.AsObject().ContainsKey("studyPlan"));
         Assert.Equal(0, _plannerCalls);
         Assert.Equal(2, body["requirements"]!.AsArray().Count);
     }
