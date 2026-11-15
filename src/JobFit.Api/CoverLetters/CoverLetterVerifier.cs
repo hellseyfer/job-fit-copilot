@@ -75,7 +75,7 @@ public sealed class CoverLetterVerifier(IChatClient chatClient)
         var prompt = new StringBuilder();
         foreach (var n in sentence.Evidence)
         {
-            prompt.AppendLine($"<evidence n=\"{n}\">\n{draft.Evidence[n - 1].Text}\n</evidence>");
+            prompt.AppendLine($"<evidence n=\"{n}\" section=\"{draft.Evidence[n - 1].Section}\">\n{draft.Evidence[n - 1].Text}\n</evidence>");
         }
 
         if (sentence.Evidence.Count == 0)

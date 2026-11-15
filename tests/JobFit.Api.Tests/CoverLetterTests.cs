@@ -127,7 +127,12 @@ public class CoverLetterVerifierTests
     [Fact]
     public async Task Each_sentence_is_checked_with_only_its_cited_evidence()
     {
-        var chat = FakeChatClient.Returning("""{"quote":"","reason":"Shown.","verdict":"supported"}""");
+        var prompt = string.Empty;
+        var chat = FakeChatClient.Responding(messages =>
+        {
+            prompt = messages.Last().Text;
+            return """{"quote":"","reason":"Shown.","verdict":"supported"}""";
+        });
         var draft = CoverLetterGroundingTests.Draft(1, null) with
         {
             Evidence = [CoverLetterGroundingTests.Draft(1, null).Evidence[0], new EvidenceItem("cv", "cv", "CV", "Skills", 5, "Knows Go.", 0.5)],
@@ -137,6 +142,8 @@ public class CoverLetterVerifierTests
         await new CoverLetterVerifier(chat).VerifyAsync(draft, CancellationToken.None);
 
         Assert.Equal(1, chat.CallCount);
+        Assert.Contains("section=\"Experience\"", prompt);
+        Assert.DoesNotContain("Knows Go.", prompt);
     }
 
     [Fact]
