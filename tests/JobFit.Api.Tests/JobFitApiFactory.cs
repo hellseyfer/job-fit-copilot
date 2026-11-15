@@ -7,8 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace JobFit.Api.Tests;
 
-// In-memory API with an unreachable database and, optionally, a fake model behind the real chat pipeline.
-public class JobFitApiFactory(FakeChatClient? chatClient = null) : WebApplicationFactory<Program>
+// In-memory API with an unreachable database and, optionally, fake models behind the real pipelines.
+public class JobFitApiFactory(FakeChatClient? chatClient = null, FakeEmbeddingGenerator? embeddingGenerator = null)
+    : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -20,10 +21,19 @@ public class JobFitApiFactory(FakeChatClient? chatClient = null) : WebApplicatio
         builder.UseSetting(
             "ConnectionStrings:chat",
             "Endpoint=http://127.0.0.1:1/v1;Key=unused;Model=unused");
+        builder.UseSetting(
+            "ConnectionStrings:embeddings",
+            "Endpoint=http://127.0.0.1:1/v1;Key=unused;Model=unused");
 
         if (chatClient is not null)
         {
             builder.ConfigureTestServices(services => services.AddChatClient(chatClient).UseJobFitPipeline());
+        }
+
+        if (embeddingGenerator is not null)
+        {
+            builder.ConfigureTestServices(services =>
+                services.AddEmbeddingGenerator(embeddingGenerator).UseJobFitPipeline());
         }
     }
 }
