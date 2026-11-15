@@ -93,15 +93,17 @@ public class MarkdownChunkerTests
         Assert.All(chunks, c => Assert.Equal("Projects > Job Fit Copilot", c.Section));
     }
 
-    [Fact]
-    public void Hash_lines_inside_code_fences_are_not_headings()
+    [Theory]
+    [InlineData("```")]
+    [InlineData("~~~")]
+    public void Hash_lines_inside_code_fences_are_not_headings(string fence)
     {
-        const string content = "# Notes\n\n```bash\n# install\ndotnet build\n```\n";
+        var content = $"# Notes\n\n{fence}bash\n# install\n\n```\ndotnet build\n{fence}\n";
 
         var chunk = Assert.Single(MarkdownChunker.Chunk(content));
 
         Assert.Equal("Notes", chunk.Section);
-        Assert.Equal("```bash\n# install\ndotnet build\n```", chunk.Text);
+        Assert.Equal($"{fence}bash\n# install\n\n```\ndotnet build\n{fence}", chunk.Text);
     }
 
     [Fact]

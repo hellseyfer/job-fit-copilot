@@ -40,7 +40,7 @@ public static partial class MarkdownChunker
         var section = "";
         int? paragraphStart = null;
         var paragraphEnd = 0;
-        var inFence = false;
+        string? fence = null;
 
         void EndParagraph()
         {
@@ -73,11 +73,16 @@ public static partial class MarkdownChunker
             var line = content[position..lineEnd].TrimEnd('\r');
             var trimmed = line.Trim();
 
-            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            if (fence is null && (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal)))
             {
-                inFence = !inFence;
+                fence = trimmed[..3];
+            }
+            else if (fence is not null && trimmed.StartsWith(fence, StringComparison.Ordinal))
+            {
+                fence = null;
             }
 
+            var inFence = fence is not null || trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal);
             var heading = inFence ? Match.Empty : HeadingPattern().Match(line);
             if (heading.Success)
             {
