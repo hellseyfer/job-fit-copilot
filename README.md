@@ -7,7 +7,7 @@ and drafts a cover letter that a human approves before it is used.
 Built as a production-minded portfolio project: spec-driven development, observability from day one,
 health probes, automated tests and evals in CI.
 
-> Status: **stage 3 — evidence retrieval**. See the [roadmap](#roadmap).
+> Status: **stage 3b — fit scoring**. See the [roadmap](#roadmap).
 
 ## Stack
 
@@ -61,6 +61,7 @@ dotnet run --project src/JobFit.AppHost -- --Llm:Model gpt-4.1-mini
 | `GET /api/knowledge/documents/{id}/chunks` | The stored chunks in order, with their section path (vectors are not returned) |
 | `DELETE /api/knowledge/documents/{id}` | Remove a document and its chunks |
 | `POST /api/evidence/search` | Requirements (`id`, `description`) → the most similar stored chunks per requirement, with citation and cosine `score`. Optional `kind` and `top` (1–10, default 3) |
+| `POST /api/fit/score` | Requirements (`id`, `description`, `importance`) → per-requirement `met` / `partial` / `missing` judged by the LLM with cited evidence, plus a 0–100 `score`, `strengths`, `partial` and `gaps`. Optional `kind` |
 
 Example request in [`src/JobFit.Api/JobFit.Api.http`](src/JobFit.Api/JobFit.Api.http):
 
@@ -86,6 +87,15 @@ verbatim `text`, with `score` = 1 − cosine distance. There is no minimum score
 enough is left to fit scoring. Invalid input (1–50 requirements, unique ids, descriptions up to 1,000
 characters) returns 400 without calling the model; embedding errors return 502.
 
+Fit scoring retrieves the top 3 evidence items per requirement and asks the chat model (LLM as judge, one
+call per requirement, at most 4 in parallel, temperature 0, structured output) for a rationale, the numbers
+of the evidence items it relied on and a status. The judgment is grounded in code: cited numbers that were
+not provided are dropped, and `met` / `partial` without a valid citation becomes `missing`. Requirements
+without evidence are `missing` without calling the model. The score is computed in code, not by the model:
+`round(100 × Σ weight·value / Σ weight)` with met 1, partial 0.5, missing 0 and must-haves weighing 2.
+Invalid input (the evidence rules plus `importance`) returns 400 without calling a model; embedding or chat
+errors and invalid judge output return 502 with no partial result.
+
 ## Tests
 
 ```bash
@@ -95,10 +105,11 @@ dotnet test JobFit.slnx
 - `tests/JobFit.Api.Tests` — in-memory host with an unreachable database and fake models (`IChatClient`,
   `IEmbeddingGenerator`); fast, no Docker, no API key.
 - `tests/JobFit.IntegrationTests` — boots the whole AppHost with a real Postgres container, and runs knowledge
-  ingestion and evidence search against a pgvector Testcontainers database with fake embeddings (requires Docker).
+  ingestion, evidence search and fit scoring against a pgvector Testcontainers database with fake models (requires Docker).
 - `tests/JobFit.Evals` — runs the extractor against a real model over a golden set of job postings and
   reports must-have recall, checks the embedding model (768 dimensions, related text ranks closer), and
-  measures evidence recall@3 on a golden CV (in-memory vector store, no database).
+  measures evidence recall@3 and the fit judge's accuracy on a golden CV with supported and unsupported
+  requirements (in-memory vector store, no database).
   Skipped unless a model is configured:
 
 ```bash
@@ -115,7 +126,7 @@ OLLAMA_ENDPOINT=http://localhost:11434 dotnet test tests/JobFit.Evals --logger "
 src/
   JobFit.AppHost/          Aspire app model: API + Postgres + language model (OpenAI or Ollama)
   JobFit.ServiceDefaults/  OpenTelemetry, health checks, resilience, service discovery
-  JobFit.Api/              HTTP API (feature folders: Requirements/, Knowledge/, Evidence/)
+  JobFit.Api/              HTTP API (feature folders: Requirements/, Knowledge/, Evidence/, Fit/)
 tests/
   JobFit.Api.Tests/
   JobFit.IntegrationTests/

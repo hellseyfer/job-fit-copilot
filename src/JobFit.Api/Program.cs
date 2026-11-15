@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JobFit.Api.Evidence;
+using JobFit.Api.Fit;
 using JobFit.Api.Knowledge;
 using JobFit.Api.Llm;
 using JobFit.Api.Requirements;
@@ -20,6 +21,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.KebabCaseLower)));
 builder.Services.AddSingleton<RequirementExtractor>();
 builder.Services.AddSingleton<EvidenceRetriever>();
+builder.Services.AddSingleton<FitJudge>();
+builder.Services.AddSingleton<FitScoringService>();
 
 var app = builder.Build();
 
@@ -32,5 +35,6 @@ app.MapDefaultEndpoints();
 app.MapRequirementEndpoints();
 app.MapKnowledgeEndpoints();
 app.MapEvidenceEndpoints();
+app.MapFitEndpoints();
 
 app.Run();

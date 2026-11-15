@@ -49,7 +49,7 @@ public class RequirementExtractionEvals(ITestOutputHelper output)
             && (r.Description.Contains(keyword, StringComparison.OrdinalIgnoreCase)
                 || r.Excerpt.Contains(keyword, StringComparison.OrdinalIgnoreCase)));
 
-    private static IChatClient? CreateChatClient()
+    internal static IChatClient? CreateChatClient()
     {
         var model = Environment.GetEnvironmentVariable("JOBFIT_EVAL_MODEL");
 
