@@ -49,7 +49,7 @@ public sealed class FitJudge(IChatClient chatClient)
             throw new JudgeFailedException("The chat model call failed.", exception);
         }
 
-        if (!response.TryGetResult(out var judged) || judged is null)
+        if (!response.TryGetResult(out var judged) || judged?.Status is not { } status || !Enum.IsDefined(status))
         {
             throw new JudgeFailedException("The chat model output does not match the expected structure.");
         }
@@ -66,9 +66,9 @@ public sealed class FitJudge(IChatClient chatClient)
             .Distinct()
             .Select(n => evidence[n - 1])
             .ToList();
-        var status = judged.Status is FitStatus.Met or FitStatus.Partial && cited.Count == 0
-            ? FitStatus.Missing
-            : judged.Status;
+        var status = judged.Status is FitStatus.Met or FitStatus.Partial && cited.Count > 0
+            ? judged.Status.Value
+            : FitStatus.Missing;
         if (status == FitStatus.Missing)
         {
             cited = [];
@@ -95,7 +95,8 @@ public sealed class FitJudge(IChatClient chatClient)
 }
 
 // Rationale comes first so the model explains before it decides.
-public sealed record JudgedRequirement(string? Rationale, IReadOnlyList<int>? Evidence, FitStatus Status);
+// Status is nullable so an omitted verdict is rejected instead of defaulting to the first enum value.
+public sealed record JudgedRequirement(string? Rationale, IReadOnlyList<int>? Evidence, FitStatus? Status);
 
 public sealed class JudgeFailedException(string message, Exception? innerException = null)
     : Exception(message, innerException);

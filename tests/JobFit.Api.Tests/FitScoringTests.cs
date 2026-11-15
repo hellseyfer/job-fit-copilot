@@ -62,6 +62,16 @@ public class FitGroundingTests
         Assert.Empty(assessment.Evidence);
     }
 
+    [Theory]
+    [InlineData("""{"rationale":"Shown.","evidence":[1]}""")]
+    [InlineData("""{"rationale":"Shown.","evidence":[1],"status":7}""")]
+    public async Task Judgment_without_a_valid_status_fails(string json)
+    {
+        var judge = new FitJudge(FakeChatClient.Returning(json));
+
+        await Assert.ThrowsAsync<JudgeFailedException>(() => judge.JudgeAsync(Requirement, Evidence, CancellationToken.None));
+    }
+
     private static EvidenceItem Item(int index, string text) => new("cv", "cv", "CV", "Experience", index, text, 0.9);
 }
 
