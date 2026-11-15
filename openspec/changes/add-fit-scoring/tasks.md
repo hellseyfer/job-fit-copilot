@@ -17,7 +17,7 @@
 
 ## 3. Integration tests (Testcontainers pgvector, fake models)
 
-- [ ] 3.1 Supported requirement is `met` citing its chunk, unsupported is `missing` without citations, in request order
+- [ ] 3.1 Supported requirement is `met` citing its chunk, unsupported is `missing` without citations, in request order; extraction fields (`category`, `excerpt`) are accepted
 - [ ] 3.2 `kind` `project` cites only project chunks
 - [ ] 3.3 Three requirements cause three judge calls; an empty store gives `missing` with no judge calls
 - [ ] 3.4 Chat model error and invalid judge output return 502

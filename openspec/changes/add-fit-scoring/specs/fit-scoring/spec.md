@@ -5,12 +5,20 @@ job requirement, and turns those judgments into an overall fit score with streng
 ## ADDED Requirements
 
 ### Requirement: Fit scoring endpoint
-The API SHALL expose `POST /api/fit/score`, accepting a JSON body with `requirements` (a list of
-objects with `id`, `description` and `importance`, `must-have` or `nice-to-have`; other fields are
-ignored) and an optional `kind` (`cv` or `project`). For each requirement it SHALL retrieve the top 3
-evidence items with the evidence retrieval capability and return an assessment with the
-requirement `id`, `description`, `importance`, a `status` (`met`, `partial` or `missing`), a short
-`rationale` and the cited evidence, in the same order as the request.
+The API SHALL expose `POST /api/fit/score`, accepting `requirements` (each with `id`, `description`
+and `importance`, `must-have` or `nice-to-have`; other fields are ignored) and an optional `kind`
+(`cv` or `project`), and SHALL retrieve the top 3 evidence items per requirement with the evidence
+retrieval capability.
+
+#### Scenario: Requirements from extraction are accepted
+- **GIVEN** a stored CV
+- **WHEN** a client posts requirements with the extraction fields `category` and `excerpt` included
+- **THEN** the response is 200 with one assessment per requirement
+
+### Requirement: Assessment per requirement
+Each assessment SHALL contain the requirement `id`, `description` and `importance`, a `status`
+(`met`, `partial` or `missing`), a short `rationale` and the cited evidence, and assessments SHALL be
+in request order.
 
 #### Scenario: Supported and unsupported requirements
 - **GIVEN** a stored CV that describes PostgreSQL experience and does not mention Rust
