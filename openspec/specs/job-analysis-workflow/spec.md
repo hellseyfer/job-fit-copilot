@@ -1,7 +1,8 @@
 # job-analysis-workflow Specification
 
 ## Purpose
-TBD - created by archiving change add-workflow-graph. Update Purpose after archive.
+Analyzes a job posting end to end against the candidate's stored documents as a graph workflow: it extracts the
+requirements, scores the fit and branches on the score, producing a grounded study plan when the fit is weak.
 
 ## Requirements
 
