@@ -32,7 +32,7 @@ public class EmbeddingEvals(ITestOutputHelper output)
         Assert.True(related > unrelated);
     }
 
-    private static IEmbeddingGenerator<string, Embedding<float>>? CreateEmbeddingGenerator()
+    internal static IEmbeddingGenerator<string, Embedding<float>>? CreateEmbeddingGenerator()
     {
         var model = Environment.GetEnvironmentVariable("JOBFIT_EVAL_EMBEDDING_MODEL");
 
@@ -41,7 +41,11 @@ public class EmbeddingEvals(ITestOutputHelper output)
         {
             return new OpenAIClient(new ApiKeyCredential(openAiKey))
                 .GetEmbeddingClient(string.IsNullOrEmpty(model) ? "text-embedding-3-small" : model)
-                .AsIEmbeddingGenerator();
+                .AsIEmbeddingGenerator()
+                .AsBuilder()
+                // Same as the API: text-embedding-3 models shorten their vectors to the store's fixed size.
+                .ConfigureOptions(options => options.Dimensions ??= KnowledgeChunkRecord.Dimensions)
+                .Build();
         }
 
         var ollamaEndpoint = Environment.GetEnvironmentVariable("OLLAMA_ENDPOINT");

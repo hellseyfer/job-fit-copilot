@@ -10,6 +10,11 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
 
     public int Dimensions { get; set; } = DefaultDimensions;
 
+    public string Model { get; set; } = ModelId;
+
+    // Optional fixed vector for an input (given the dimensions); null falls back to the word-hash vector.
+    public Func<string, int, float[]?>? VectorFor { get; set; }
+
     public Exception? Error { get; set; }
 
     public int CallCount { get; private set; }
@@ -25,7 +30,7 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
 
         var inputs = values.ToList();
         var embeddings = new GeneratedEmbeddings<Embedding<float>>(
-            inputs.Select(input => new Embedding<float>(Vectorize(input)) { ModelId = ModelId }))
+            inputs.Select(input => new Embedding<float>(VectorFor?.Invoke(input, Dimensions) ?? Vectorize(input)) { ModelId = Model }))
         {
             Usage = new UsageDetails
             {
@@ -37,7 +42,7 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
 
     public object? GetService(Type serviceType, object? serviceKey = null) =>
         serviceType == typeof(EmbeddingGeneratorMetadata)
-            ? new EmbeddingGeneratorMetadata("fake", null, ModelId, Dimensions)
+            ? new EmbeddingGeneratorMetadata("fake", null, Model, Dimensions)
             : null;
 
     public void Dispose()

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using JobFit.Api.Evidence;
 using JobFit.Api.Knowledge;
 using JobFit.Api.Llm;
 using JobFit.Api.Requirements;
@@ -18,6 +19,7 @@ builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.KebabCaseLower)));
 builder.Services.AddSingleton<RequirementExtractor>();
+builder.Services.AddSingleton<EvidenceRetriever>();
 
 var app = builder.Build();
 
@@ -29,5 +31,6 @@ if (app.Environment.IsDevelopment())
 app.MapDefaultEndpoints();
 app.MapRequirementEndpoints();
 app.MapKnowledgeEndpoints();
+app.MapEvidenceEndpoints();
 
 app.Run();
