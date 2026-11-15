@@ -9,6 +9,7 @@ public static class KnowledgeRegistration
         // The collection uses the Aspire NpgsqlDataSource, which maps pgvector types (UseVector in Program).
         builder.Services.AddPostgresCollection<string, KnowledgeChunkRecord>(KnowledgeChunkRecord.CollectionName);
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<KnowledgeCollection>();
         builder.Services.AddSingleton<KnowledgeIngestionService>();
         return builder;
     }

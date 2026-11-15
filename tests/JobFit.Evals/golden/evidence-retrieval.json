@@ -1,0 +1,76 @@
+{
+  "title": "Jane Doe CV",
+  "cv": "# Jane Doe\n\nSenior backend engineer based in Córdoba, Argentina.\n\n# Experience\n\n## Acme Payments (2020-2025)\n\nDesigned and built payment REST APIs in C# with ASP.NET Core on .NET 8. Tuned PostgreSQL queries and indexes, cutting p95 latency from 800 ms to 120 ms. Led a team of four engineers and mentored two juniors through code reviews and pairing.\n\n## Globex (2017-2020)\n\nBuilt customer-facing single-page applications with React and TypeScript. Wrote unit tests with Jest and end-to-end tests with Playwright.\n\n## Initech (2015-2017)\n\nContainerized legacy services with Docker and moved them to Kubernetes on AWS. Wrote Terraform modules for the networking and databases, and set up CI/CD pipelines with GitHub Actions.\n\n# Side projects\n\nBuilt a retrieval-augmented chatbot over company documentation using OpenAI embeddings and a vector database.\n\n# Education\n\nBSc in Computer Science, National University of Córdoba, 2015.\n\n# Languages\n\nSpanish (native), English (fluent, C1).\n",
+  "requirements": [
+    {
+      "id": "req-1",
+      "description": "5+ years of backend development with C# and .NET",
+      "sections": [
+        "Experience > Acme Payments (2020-2025)"
+      ]
+    },
+    {
+      "id": "req-2",
+      "description": "Experience optimizing PostgreSQL performance",
+      "sections": [
+        "Experience > Acme Payments (2020-2025)"
+      ]
+    },
+    {
+      "id": "req-3",
+      "description": "Building web frontends with React and TypeScript",
+      "sections": [
+        "Experience > Globex (2017-2020)"
+      ]
+    },
+    {
+      "id": "req-4",
+      "description": "Containers and orchestration with Docker and Kubernetes",
+      "sections": [
+        "Experience > Initech (2015-2017)"
+      ]
+    },
+    {
+      "id": "req-5",
+      "description": "Infrastructure as code with Terraform",
+      "sections": [
+        "Experience > Initech (2015-2017)"
+      ]
+    },
+    {
+      "id": "req-6",
+      "description": "CI/CD pipelines",
+      "sections": [
+        "Experience > Initech (2015-2017)"
+      ]
+    },
+    {
+      "id": "req-7",
+      "description": "Leading and mentoring engineers",
+      "sections": [
+        "Experience > Acme Payments (2020-2025)"
+      ]
+    },
+    {
+      "id": "req-8",
+      "description": "Experience building LLM applications with RAG",
+      "sections": [
+        "Side projects"
+      ]
+    },
+    {
+      "id": "req-9",
+      "description": "Degree in Computer Science or related field",
+      "sections": [
+        "Education"
+      ]
+    },
+    {
+      "id": "req-10",
+      "description": "Fluent English",
+      "sections": [
+        "Languages"
+      ]
+    }
+  ]
+}

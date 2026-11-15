@@ -28,6 +28,19 @@ Content-Type: application/json
 GET {{JobFit.Api_HostAddress}}/api/knowledge/documents/cv/chunks
 
 ###
+POST {{JobFit.Api_HostAddress}}/api/evidence/search
+Content-Type: application/json
+
+{
+  "requirements": [
+    { "id": "req-1", "description": "5+ years of C# and .NET" },
+    { "id": "req-2", "description": "Kubernetes" }
+  ],
+  "kind": "cv",
+  "top": 2
+}
+
+###
 DELETE {{JobFit.Api_HostAddress}}/api/knowledge/documents/cv
 
 ###
