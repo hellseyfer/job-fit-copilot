@@ -9,9 +9,8 @@ requirements, scores the fit and branches on the score, producing a grounded stu
 ### Requirement: Job analysis endpoint
 The system SHALL expose `POST /api/analyses` that accepts a `jobPosting` (required, at most 20,000
 characters) and an optional `kind` (`cv` or `project`), runs the job analysis workflow and returns the
-extracted posting (`title`, `seniority`, `requirements`), the `fit` result with the same shape as
-`POST /api/fit/score`, the `route` taken (`strong-fit` or `weak-fit`), the executed node `path`, a
-`coverLetter` present only on the `strong-fit` route, and a `studyPlan` present only on the `weak-fit` route.
+posting (`title`, `seniority`, `requirements`), the `fit` result of `POST /api/fit/score`, the `route`
+(`strong-fit` or `weak-fit`), the executed `path`, and a `coverLetter` (strong fit) or `studyPlan` (weak fit).
 
 #### Scenario: Strong fit
 - **WHEN** a job posting is analyzed and the fit score is greater than or equal to the configured threshold
