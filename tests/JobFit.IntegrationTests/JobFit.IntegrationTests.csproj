@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <Compile Include="..\JobFit.Api.Tests\FakeEmbeddingGenerator.cs" Link="FakeEmbeddingGenerator.cs" />
+    <Compile Include="..\JobFit.Api.Tests\FakeChatClient.cs" Link="FakeChatClient.cs" />
   </ItemGroup>
 
 </Project>

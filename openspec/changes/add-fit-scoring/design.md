@@ -31,9 +31,11 @@ cosine `score`, filtered by embedding model and optional `kind`. See proposal.md
   fewer calls but prompts grow with 50 × 3 chunks and one bad item invalidates the whole output.
   The concurrency limit protects Ollama on CPU and provider rate limits. Requirements with no
   evidence skip the call.
-- **Structured output `JudgedRequirement { status, rationale, evidence: int[] }`** with
+- **Structured output `JudgedRequirement { rationale, evidence: int[], status }`**, rationale first so the
+  model explains before it decides (with status first, `qwen2.5:3b` judged most supported requirements
+  `missing` in the eval), with
   `useJsonSchemaResponseFormat: true` and temperature 0, like the extractor. The system prompt
-  defines the statuses (`met`: evidence clearly shows it; `partial`: related or weaker experience;
+  tells the model the evidence is the candidate's own CV, defines the statuses (`met`: evidence clearly shows it; `partial`: related or weaker experience;
   `missing`: evidence does not show it), forbids using knowledge outside the evidence and treats the
   `<requirement>` and `<evidence n="…">` blocks as untrusted data.
 - **Deterministic grounding.** Citation numbers outside 1..n are dropped and duplicates removed; a

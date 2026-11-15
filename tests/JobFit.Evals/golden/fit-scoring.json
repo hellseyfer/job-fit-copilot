@@ -1,0 +1,19 @@
+{
+  "comment": "Judged against the CV in evidence-retrieval.json. Supported requirements should be met or partial; unsupported ones missing.",
+  "requirements": [
+    { "id": "req-1", "description": "5+ years of backend development with C# and .NET", "supported": true },
+    { "id": "req-2", "description": "Experience optimizing PostgreSQL performance", "supported": true },
+    { "id": "req-3", "description": "Building web frontends with React and TypeScript", "supported": true },
+    { "id": "req-4", "description": "Containers and orchestration with Docker and Kubernetes", "supported": true },
+    { "id": "req-5", "description": "Infrastructure as code with Terraform", "supported": true },
+    { "id": "req-6", "description": "CI/CD pipelines", "supported": true },
+    { "id": "req-7", "description": "Leading and mentoring engineers", "supported": true },
+    { "id": "req-8", "description": "Degree in Computer Science or related field", "supported": true },
+    { "id": "req-9", "description": "Fluent English", "supported": true },
+    { "id": "req-10", "description": "Production experience with Rust", "supported": false },
+    { "id": "req-11", "description": "Salesforce administration and Apex development", "supported": false },
+    { "id": "req-12", "description": "Registered nurse license", "supported": false },
+    { "id": "req-13", "description": "Fluent German", "supported": false },
+    { "id": "req-14", "description": "PhD in Machine Learning", "supported": false }
+  ]
+}

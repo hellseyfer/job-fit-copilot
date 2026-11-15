@@ -41,6 +41,18 @@ Content-Type: application/json
 }
 
 ###
+POST {{JobFit.Api_HostAddress}}/api/fit/score
+Content-Type: application/json
+
+{
+  "requirements": [
+    { "id": "req-1", "description": "5+ years of C# and .NET", "importance": "must-have" },
+    { "id": "req-2", "description": "Kubernetes", "importance": "nice-to-have" }
+  ],
+  "kind": "cv"
+}
+
+###
 DELETE {{JobFit.Api_HostAddress}}/api/knowledge/documents/cv
 
 ###
