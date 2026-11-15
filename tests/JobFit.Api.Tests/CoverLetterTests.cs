@@ -51,6 +51,11 @@ public class CoverLetterGroundingTests
             new WrittenLetter([new WrittenSentence("I know Go.", (SentenceKind)7, [1])]), 3));
 
     [Fact]
+    public void Blank_sentence_with_an_undefined_kind_is_dropped() =>
+        Assert.Single(CoverLetterGrounding.Sentences(
+            new WrittenLetter([new WrittenSentence(" ", (SentenceKind)7, []), new WrittenSentence("I know Go.", SentenceKind.Claim, [1])]), 3));
+
+    [Fact]
     public void Draft_without_sentences_fails() =>
         Assert.Throws<CoverLetterFailedException>(() => CoverLetterGrounding.Sentences(new WrittenLetter([]), 3));
 

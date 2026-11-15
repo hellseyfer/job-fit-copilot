@@ -29,7 +29,7 @@ public static class CoverLetterGrounding
     // Drops blank sentences and citations outside 1..evidenceCount; a sentence without a kind is treated as a claim.
     public static IReadOnlyList<LetterSentence> Sentences(WrittenLetter written, int evidenceCount)
     {
-        if ((written.Sentences ?? []).Any(s => s?.Kind is { } kind && !Enum.IsDefined(kind)))
+        if ((written.Sentences ?? []).Any(s => !string.IsNullOrWhiteSpace(s?.Text) && s.Kind is { } kind && !Enum.IsDefined(kind)))
         {
             throw new CoverLetterFailedException("The cover letter draft has a sentence with an unknown kind.");
         }
