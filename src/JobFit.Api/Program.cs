@@ -1,13 +1,17 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using JobFit.Api.Knowledge;
 using JobFit.Api.Llm;
 using JobFit.Api.Requirements;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.AddNpgsqlDataSource("jobfit");
+builder.AddNpgsqlDataSource("jobfit", configureDataSourceBuilder: dataSource => dataSource.UseVector());
 builder.AddJobFitChatClient();
+builder.AddJobFitEmbeddingGenerator();
+builder.AddKnowledgeIngestion();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
@@ -24,5 +28,6 @@ if (app.Environment.IsDevelopment())
 
 app.MapDefaultEndpoints();
 app.MapRequirementEndpoints();
+app.MapKnowledgeEndpoints();
 
 app.Run();
