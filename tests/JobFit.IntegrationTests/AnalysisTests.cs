@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
@@ -36,11 +38,24 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
     private HttpClient _client = null!;
     private int _judgeCalls;
     private int _plannerCalls;
+    private int _writerCalls;
+    private int _verifierCalls;
+    private readonly ConcurrentQueue<string> _writerPrompts = new();
 
     // PostgreSQL must-have (met), Kubernetes nice-to-have (met), Rust must-have (missing): score 60.
     private string _extraction = Extraction(("PostgreSQL", "must-have"), ("Kubernetes", "nice-to-have"), ("Rust", "must-have"));
     private Func<string>? _judge;
     private Func<string, string>? _planner;
+    private Func<string>? _writer;
+    private Func<int, string, string>? _verifier;
+
+    private const string Letter = """
+        {"sentences":[
+          {"text":"I am applying for the backend role.","kind":"connective","evidence":[]},
+          {"text":"I tuned PostgreSQL queries for a payments platform.","kind":"claim","evidence":[1]},
+          {"text":"I wrote Rust in production.","kind":"claim","evidence":[2]}
+        ]}
+        """;
 
     public Task InitializeAsync()
     {
@@ -55,7 +70,7 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Strong_fit_ends_without_a_study_plan()
+    public async Task Strong_fit_letter_accepted_first_time()
     {
         await PutAsync(NewId(), "cv", Cv);
         _extraction = Extraction(("PostgreSQL", "must-have"), ("Kubernetes", "nice-to-have"));
@@ -63,11 +78,83 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         var body = await AnalyzeAsync(new { jobPosting = Posting });
 
         Assert.Equal("strong-fit", body["route"]!.GetValue<string>());
-        Assert.Equal(["extract-requirements", "score-fit", "strong-fit"], Path(body));
+        Assert.Equal(["extract-requirements", "score-fit", "write-cover-letter", "verify-cover-letter", "finalize-cover-letter"], Path(body));
         Assert.Equal(100, body["fit"]!["score"]!.GetValue<int>());
         Assert.False(body.AsObject().ContainsKey("studyPlan"));
         Assert.Equal(0, _plannerCalls);
         Assert.Equal(2, body["requirements"]!.AsArray().Count);
+
+        var letter = body["coverLetter"]!;
+        Assert.Equal(1, letter["attempts"]!.GetValue<int>());
+        Assert.Empty(letter["removed"]!.AsArray());
+        Assert.Equal(3, letter["sentences"]!.AsArray().Count);
+        Assert.StartsWith("I am applying for the backend role. I tuned PostgreSQL", letter["text"]!.GetValue<string>());
+        var cited = Assert.Single(letter["sentences"]![1]!["evidence"]!.AsArray());
+        Assert.Contains("PostgreSQL", cited!["text"]!.GetValue<string>());
+        Assert.Equal(1, _writerCalls);
+        Assert.Equal(1, _verifierCalls);
+    }
+
+    [Fact]
+    public async Task Rewrite_fixes_the_letter()
+    {
+        await PutAsync(NewId(), "cv", Cv);
+        _extraction = Extraction(("PostgreSQL", "must-have"), ("Kubernetes", "nice-to-have"));
+        _verifier = (call, prompt) => call == 1 ? Verdicts(prompt, rejected: 3) : Verdicts(prompt);
+
+        var body = await AnalyzeAsync(new { jobPosting = Posting });
+
+        Assert.Equal(
+            ["extract-requirements", "score-fit", "write-cover-letter", "verify-cover-letter", "write-cover-letter", "verify-cover-letter", "finalize-cover-letter"],
+            Path(body));
+        Assert.Equal(2, body["coverLetter"]!["attempts"]!.GetValue<int>());
+        Assert.Empty(body["coverLetter"]!["removed"]!.AsArray());
+        Assert.Equal(2, _writerCalls);
+        var rewritePrompt = _writerPrompts.Last();
+        Assert.Contains("rejected: Rust is not in the evidence.\">I wrote Rust in production.", rewritePrompt);
+    }
+
+    [Fact]
+    public async Task Sentence_still_unsupported_after_three_drafts_is_removed()
+    {
+        await PutAsync(NewId(), "cv", Cv);
+        _extraction = Extraction(("PostgreSQL", "must-have"), ("Kubernetes", "nice-to-have"));
+        _verifier = (_, prompt) => Verdicts(prompt, rejected: 3);
+
+        var body = await AnalyzeAsync(new { jobPosting = Posting });
+
+        var letter = body["coverLetter"]!;
+        Assert.Equal(3, letter["attempts"]!.GetValue<int>());
+        Assert.Equal(3, _writerCalls);
+        var removed = Assert.Single(letter["removed"]!.AsArray());
+        Assert.Equal("I wrote Rust in production.", removed!["text"]!.GetValue<string>());
+        Assert.Equal("Rust is not in the evidence.", removed["reason"]!.GetValue<string>());
+        Assert.DoesNotContain("Rust", letter["text"]!.GetValue<string>());
+        Assert.Equal(2, letter["sentences"]!.AsArray().Count);
+    }
+
+    [Theory]
+    [InlineData("writer", true)]
+    [InlineData("writer", false)]
+    [InlineData("verifier", true)]
+    [InlineData("verifier", false)]
+    public async Task Cover_letter_failure_returns_502(string role, bool throws)
+    {
+        await PutAsync(NewId(), "cv", Cv);
+        _extraction = Extraction(("PostgreSQL", "must-have"));
+        Func<string> fail = () => throws ? throw new HttpRequestException("down") : "Here is your letter.";
+        if (role == "writer")
+        {
+            _writer = fail;
+        }
+        else
+        {
+            _verifier = (_, _) => fail();
+        }
+
+        using var response = await PostAsync(new { jobPosting = Posting });
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
     }
 
     [Fact]
@@ -84,6 +171,9 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         Assert.Equal("req-3", item!["requirementId"]!.GetValue<string>());
         Assert.Equal("Learn it.", item["focus"]!.GetValue<string>());
         Assert.Equal(1, _plannerCalls);
+        Assert.False(body.AsObject().ContainsKey("coverLetter"));
+        Assert.Equal(0, _writerCalls);
+        Assert.Equal(0, _verifierCalls);
     }
 
     [Theory]
@@ -184,6 +274,15 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         Assert.All(chat, c => Assert.Equal(run.TraceId, c.TraceId));
     }
 
+    // Supports every sentence in the verifier prompt except the rejected one.
+    private static string Verdicts(string prompt, int rejected = 0)
+    {
+        var verdicts = Regex.Matches(prompt, "<sentence n=\"(\\d+)\"").Select(m => int.Parse(m.Groups[1].Value)).Select(n => n == rejected
+            ? $$"""{"sentence":{{n}},"reason":"Rust is not in the evidence.","supported":false}"""
+            : $$"""{"sentence":{{n}},"reason":"Shown.","supported":true}""");
+        return $$"""{"verdicts":[{{string.Join(",", verdicts)}}]}""";
+    }
+
     private static string Extraction(params (string Skill, string Importance)[] requirements)
     {
         var items = string.Join(",", requirements.Select(r =>
@@ -208,6 +307,19 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
             return requirement.Contains("Rust", StringComparison.Ordinal)
                 ? """{"rationale":"No Rust in the evidence.","evidence":[],"status":"missing"}"""
                 : """{"rationale":"The evidence shows it.","evidence":[1],"status":"met"}""";
+        }
+
+        if (system.StartsWith("You write a short cover letter", StringComparison.Ordinal))
+        {
+            Interlocked.Increment(ref _writerCalls);
+            _writerPrompts.Enqueue(prompt);
+            return _writer?.Invoke() ?? Letter;
+        }
+
+        if (system.StartsWith("You check a cover letter", StringComparison.Ordinal))
+        {
+            var call = Interlocked.Increment(ref _verifierCalls);
+            return _verifier?.Invoke(call, prompt) ?? Verdicts(prompt);
         }
 
         if (system.StartsWith("You write a study plan", StringComparison.Ordinal))

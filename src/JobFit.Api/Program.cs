@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JobFit.Api.Analysis;
+using JobFit.Api.CoverLetters;
 using JobFit.Api.Evidence;
 using JobFit.Api.Fit;
 using JobFit.Api.Knowledge;
@@ -26,6 +27,8 @@ builder.Services.AddSingleton<FitJudge>();
 builder.Services.AddSingleton<FitScoringService>();
 builder.Services.Configure<WorkflowOptions>(builder.Configuration.GetSection("Workflow"));
 builder.Services.AddSingleton<StudyPlanner>();
+builder.Services.AddSingleton<CoverLetterWriter>();
+builder.Services.AddSingleton<CoverLetterVerifier>();
 builder.Services.AddSingleton<JobAnalysisWorkflow>();
 
 var app = builder.Build();

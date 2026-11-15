@@ -1,3 +1,4 @@
+using JobFit.Api.CoverLetters;
 using JobFit.Api.Evidence;
 using JobFit.Api.Fit;
 using JobFit.Api.Knowledge;
@@ -46,7 +47,8 @@ public static class AnalysisEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: exception.Message);
         }
         catch (Exception exception) when (exception is ExtractionFailedException or EmbeddingFailedException
-                                              or JudgeFailedException or StudyPlanFailedException)
+                                              or JudgeFailedException or StudyPlanFailedException
+                                              or CoverLetterFailedException)
         {
             logger.LogError(exception, "A model call failed while analyzing a job posting");
             return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: exception.Message);
