@@ -16,8 +16,8 @@ public sealed class KnowledgeIngestionService(
     TimeProvider timeProvider,
     ILogger<KnowledgeIngestionService> logger)
 {
-    // A document has at most 50,000 characters, so it never reaches this many chunks.
-    private const int MaxChunksPerDocument = 1_000;
+    // Every chunk holds at least one character of the content, so this bounds the chunks of any valid document.
+    private const int MaxChunksPerDocument = KnowledgeEndpoints.MaxContentLength;
 
     private readonly SemaphoreSlim _collectionLock = new(1, 1);
     private volatile bool _collectionReady;
