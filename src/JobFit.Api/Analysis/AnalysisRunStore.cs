@@ -6,7 +6,8 @@ using NpgsqlTypes;
 
 namespace JobFit.Api.Analysis;
 
-public sealed record ClaimedRun(string CheckpointId, AnalyzeJobResponse Response);
+// ClaimId identifies one resume: only the resume holding the current claim may write the run back.
+public sealed record ClaimedRun(string ClaimId, string CheckpointId, AnalyzeJobResponse Response);
 
 // One row per analysis: its status, the response so far and the checkpoint a paused run resumes from.
 public sealed class AnalysisRunStore(NpgsqlDataSource dataSource, IOptions<JsonOptions> jsonOptions)
@@ -21,6 +22,7 @@ public sealed class AnalysisRunStore(NpgsqlDataSource dataSource, IOptions<JsonO
             status text NOT NULL,
             result jsonb NOT NULL,
             feedback_rounds integer NOT NULL DEFAULT 0,
+            claim_id text NULL,
             updated_at timestamptz NOT NULL DEFAULT now());
         """);
 
@@ -54,38 +56,47 @@ public sealed class AnalysisRunStore(NpgsqlDataSource dataSource, IOptions<JsonO
     {
         await _schema.EnsureCreatedAsync(cancellationToken);
         await using var command = dataSource.CreateCommand("""
-            UPDATE analysis_runs SET status = @resuming, updated_at = now()
+            UPDATE analysis_runs SET status = @resuming, claim_id = @claim, updated_at = now()
             WHERE run_id = @id AND (status = @awaiting OR (status = @resuming AND updated_at < now() - @lease))
             RETURNING checkpoint_id, result::text
             """);
         command.Parameters.AddWithValue("id", runId);
         command.Parameters.AddWithValue("lease", ResumeLease);
+        var claimId = Guid.NewGuid().ToString("N");
+        command.Parameters.AddWithValue("claim", claimId);
         command.Parameters.AddWithValue("resuming", Name(AnalysisStatus.Resuming));
         command.Parameters.AddWithValue("awaiting", Name(AnalysisStatus.AwaitingApproval));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken)
-            ? new ClaimedRun(reader.GetString(0), Read(Name(AnalysisStatus.Resuming), reader.GetString(1)))
+            ? new ClaimedRun(claimId, reader.GetString(0), Read(Name(AnalysisStatus.Resuming), reader.GetString(1)))
             : null;
     }
 
-    public async Task UpdateAsync(
-        AnalyzeJobResponse response, string? checkpointId, int feedbackRounds, CancellationToken cancellationToken)
+    // Writes the resumed run back; false when its claim expired and another decision has claimed the run since.
+    public async Task<bool> UpdateAsync(
+        string claimId, AnalyzeJobResponse response, string? checkpointId, int feedbackRounds, CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand("""
             UPDATE analysis_runs
-            SET status = @status, result = @result, checkpoint_id = @checkpoint, feedback_rounds = @rounds, updated_at = now()
-            WHERE run_id = @id
+            SET status = @status, result = @result, checkpoint_id = @checkpoint, feedback_rounds = @rounds,
+                claim_id = NULL, updated_at = now()
+            WHERE run_id = @id AND status = @resuming AND claim_id = @claim
             """);
         AddState(command, response, checkpointId, feedbackRounds);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        command.Parameters.AddWithValue("claim", claimId);
+        command.Parameters.AddWithValue("resuming", Name(AnalysisStatus.Resuming));
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
 
     // Gives a claimed run back to the reviewer after a failed resume.
-    public async Task ReleaseAsync(string runId, CancellationToken cancellationToken)
+    public async Task ReleaseAsync(string runId, string claimId, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand(
-            "UPDATE analysis_runs SET status = @awaiting, updated_at = now() WHERE run_id = @id AND status = @resuming");
+        await using var command = dataSource.CreateCommand("""
+            UPDATE analysis_runs SET status = @awaiting, claim_id = NULL, updated_at = now()
+            WHERE run_id = @id AND status = @resuming AND claim_id = @claim
+            """);
         command.Parameters.AddWithValue("id", runId);
+        command.Parameters.AddWithValue("claim", claimId);
         command.Parameters.AddWithValue("resuming", Name(AnalysisStatus.Resuming));
         command.Parameters.AddWithValue("awaiting", Name(AnalysisStatus.AwaitingApproval));
         await command.ExecuteNonQueryAsync(cancellationToken);

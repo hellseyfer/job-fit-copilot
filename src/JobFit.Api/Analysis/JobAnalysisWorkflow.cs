@@ -151,12 +151,17 @@ public sealed class JobAnalysisWorkflow(
             await run.ResumeAsync([request.CreateResponse(new ReviewDecision(pending, approved, feedback))], cancellationToken);
             var step = Collect(run.NewEvents, cancellationToken);
             var response = ToResponse(runId, claimed.Response.Path, step);
-            await runs.UpdateAsync(response, step.Checkpoint?.CheckpointId ?? claimed.CheckpointId, step.FeedbackRounds, cancellationToken);
+            if (!await runs.UpdateAsync(
+                    claimed.ClaimId, response, step.Checkpoint?.CheckpointId ?? claimed.CheckpointId, step.FeedbackRounds, cancellationToken))
+            {
+                throw new AnalysisRunConflictException(runId);
+            }
+
             return response;
         }
         catch
         {
-            await runs.ReleaseAsync(runId, CancellationToken.None);
+            await runs.ReleaseAsync(runId, claimed.ClaimId, CancellationToken.None);
             throw;
         }
     }

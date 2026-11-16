@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using JobFit.Api.Tests;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace JobFit.IntegrationTests;
 
@@ -454,6 +455,21 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         var body = await DecideAsync(runId, new { approved = true }, HttpStatusCode.OK);
 
         Assert.Equal("approved", body["status"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Resume_whose_claim_expired_cannot_overwrite_the_newer_decision()
+    {
+        var runId = await PausedRunAsync();
+        var store = _factory.Services.GetRequiredService<JobFit.Api.Analysis.AnalysisRunStore>();
+        var slow = (await store.ClaimAsync(runId, CancellationToken.None))!;
+
+        await SetResumingAsync(runId, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(16));
+        var approved = await DecideAsync(runId, new { approved = true }, HttpStatusCode.OK);
+
+        Assert.False(await store.UpdateAsync(slow.ClaimId, slow.Response, slow.CheckpointId, 0, CancellationToken.None));
+        await store.ReleaseAsync(runId, slow.ClaimId, CancellationToken.None);
+        Assert.Equal(approved.ToJsonString(), (await GetRunAsync(runId)).ToJsonString());
     }
 
     // Leaves the run as an API that stopped mid-resume would: claimed at the given time.
