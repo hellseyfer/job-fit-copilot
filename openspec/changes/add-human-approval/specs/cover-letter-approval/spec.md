@@ -59,6 +59,10 @@ only one decision per pause: a decision for a run that is not awaiting approval 
 - **WHEN** the API restarts between the analysis and the approval
 - **THEN** the approval resumes the run and returns `status` `approved`
 
+#### Scenario: Interrupted resume
+- **WHEN** the API stops while a decision is being applied and a new decision arrives more than 15 minutes later
+- **THEN** the run is resumed from its last checkpoint as if it were awaiting approval
+
 #### Scenario: Run already decided
 - **WHEN** a decision is sent for a run whose status is `approved`, `rejected` or `completed`
 - **THEN** the response is 409 and the run does not change

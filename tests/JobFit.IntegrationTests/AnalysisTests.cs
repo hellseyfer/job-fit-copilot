@@ -440,6 +440,34 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Interrupted_resume_can_be_claimed_again_after_the_lease()
+    {
+        var runId = await PausedRunAsync();
+        await SetResumingAsync(runId, DateTimeOffset.UtcNow);
+
+        using (var fresh = await DecideAsync(runId, new { approved = true }))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, fresh.StatusCode);
+        }
+
+        await SetResumingAsync(runId, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(16));
+        var body = await DecideAsync(runId, new { approved = true }, HttpStatusCode.OK);
+
+        Assert.Equal("approved", body["status"]!.GetValue<string>());
+    }
+
+    // Leaves the run as an API that stopped mid-resume would: claimed at the given time.
+    private async Task SetResumingAsync(string runId, DateTimeOffset claimedAt)
+    {
+        await using var dataSource = Npgsql.NpgsqlDataSource.Create(database.ConnectionString);
+        await using var command = dataSource.CreateCommand(
+            "UPDATE analysis_runs SET status = 'resuming', updated_at = @at WHERE run_id = @id");
+        command.Parameters.AddWithValue("id", runId);
+        command.Parameters.AddWithValue("at", claimedAt);
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+    }
+
+    [Fact]
     public async Task Model_failure_while_resuming_returns_502_and_the_run_can_be_retried()
     {
         var runId = await PausedRunAsync();

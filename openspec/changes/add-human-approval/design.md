@@ -37,7 +37,8 @@ Non-goals: auth, run expiry, notifications.
 - **One decision per pause.** The approval endpoint claims the run with
   `UPDATE analysis_runs SET status = 'resuming' WHERE run_id = @id AND status = 'awaiting-approval' RETURNING …`;
   zero rows → 409 (or 404 when the run does not exist). On a model failure while resuming the status goes back
-  to `awaiting-approval` and the response is 502, so the reviewer can retry.
+  to `awaiting-approval` and the response is 502, so the reviewer can retry. A claim older than a 15-minute
+  lease (the API stopped mid-resume) can be claimed again, so an interrupted run is not stuck in `resuming`.
 - **Feedback** goes to the writer as `<reviewer_feedback>` untrusted data in the rewrite prompt; the verification
   loop restarts at attempt 1 for the new letter. `feedback_rounds` caps rejections with feedback at 3.
 - **Status values:** `awaiting-approval`, `approved`, `rejected`, `completed` (weak fit), `resuming` (internal).

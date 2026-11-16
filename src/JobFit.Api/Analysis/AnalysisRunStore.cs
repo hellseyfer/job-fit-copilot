@@ -46,16 +46,20 @@ public sealed class AnalysisRunStore(NpgsqlDataSource dataSource, IOptions<JsonO
         return await reader.ReadAsync(cancellationToken) ? Read(reader.GetString(0), reader.GetString(1)) : null;
     }
 
+    // A claim older than this is a resume that never finished (the API stopped mid-way); the run can be claimed again.
+    public static readonly TimeSpan ResumeLease = TimeSpan.FromMinutes(15);
+
     // Atomically moves a paused run to resuming; null when the run is not awaiting approval (or does not exist).
     public async Task<ClaimedRun?> ClaimAsync(string runId, CancellationToken cancellationToken)
     {
         await _schema.EnsureCreatedAsync(cancellationToken);
         await using var command = dataSource.CreateCommand("""
             UPDATE analysis_runs SET status = @resuming, updated_at = now()
-            WHERE run_id = @id AND status = @awaiting
+            WHERE run_id = @id AND (status = @awaiting OR (status = @resuming AND updated_at < now() - @lease))
             RETURNING checkpoint_id, result::text
             """);
         command.Parameters.AddWithValue("id", runId);
+        command.Parameters.AddWithValue("lease", ResumeLease);
         command.Parameters.AddWithValue("resuming", Name(AnalysisStatus.Resuming));
         command.Parameters.AddWithValue("awaiting", Name(AnalysisStatus.AwaitingApproval));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
