@@ -24,6 +24,7 @@ public sealed class AnalysisRunStore(NpgsqlDataSource dataSource, IOptions<JsonO
             feedback_rounds integer NOT NULL DEFAULT 0,
             claim_id text NULL,
             updated_at timestamptz NOT NULL DEFAULT now());
+        ALTER TABLE analysis_runs ADD COLUMN IF NOT EXISTS claim_id text NULL;
         """);
 
     public async Task CreateAsync(
