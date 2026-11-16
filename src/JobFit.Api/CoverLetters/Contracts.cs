@@ -18,12 +18,15 @@ public sealed record LetterSentence(string Text, SentenceKind Kind, IReadOnlyLis
 public sealed record SentenceVerdict(bool Supported, string Reason);
 
 // The loop state: one immutable draft per write, with verdicts once it is verified.
+// Feedback and FeedbackRounds carry the reviewer's last rejection comment and how many there have been.
 public sealed record LetterDraft(
     FitStage Stage,
     IReadOnlyList<EvidenceItem> Evidence,
     int Attempt,
     IReadOnlyList<LetterSentence> Sentences,
-    IReadOnlyList<SentenceVerdict>? Verdicts = null)
+    IReadOnlyList<SentenceVerdict>? Verdicts = null,
+    string? Feedback = null,
+    int FeedbackRounds = 0)
 {
     public const int MaxDrafts = 3;
 

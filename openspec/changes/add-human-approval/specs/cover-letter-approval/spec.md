@@ -47,6 +47,10 @@ After 3 rejections with feedback the system SHALL treat a further rejection as f
 - **WHEN** a run has already been rejected with feedback 3 times and is rejected with feedback again
 - **THEN** the response is 200 with `status` `rejected` and the writer is not called
 
+#### Scenario: Model failure while resuming
+- **WHEN** the writer or verifier fails while a rejection with feedback is applied
+- **THEN** the response is 502, the run is `awaiting-approval` again and the decision can be retried
+
 ### Requirement: Durable and exclusive runs
 The system SHALL resume runs from the PostgreSQL checkpoint, so a run survives an API restart, and SHALL accept
 only one decision per pause: a decision for a run that is not awaiting approval returns 409.
@@ -58,3 +62,7 @@ only one decision per pause: a decision for a run that is not awaiting approval 
 #### Scenario: Run already decided
 - **WHEN** a decision is sent for a run whose status is `approved`, `rejected` or `completed`
 - **THEN** the response is 409 and the run does not change
+
+#### Scenario: Concurrent decisions
+- **WHEN** two decisions for the same paused run arrive at the same time
+- **THEN** one is applied and the other returns 409

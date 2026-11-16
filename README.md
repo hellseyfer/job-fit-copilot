@@ -62,7 +62,9 @@ dotnet run --project src/JobFit.AppHost -- --Llm:Model gpt-4.1-mini
 | `DELETE /api/knowledge/documents/{id}` | Remove a document and its chunks |
 | `POST /api/evidence/search` | Requirements (`id`, `description`) → the most similar stored chunks per requirement, with citation and cosine `score`. Optional `kind` and `top` (1–10, default 3) |
 | `POST /api/fit/score` | Requirements (`id`, `description`, `importance`) → per-requirement `met` / `partial` / `missing` judged by the LLM with cited evidence, plus a 0–100 `score`, `strengths`, `partial` and `gaps`. Optional `kind` |
-| `POST /api/analyses` | Job posting → the whole workflow graph: extraction, fit scoring and then a verified cover letter (strong fit) or a study plan (weak fit). Returns the posting, `fit`, `route` (`strong-fit` / `weak-fit`), the executed node `path`, `coverLetter` and `studyPlan`. Optional `kind` |
+| `POST /api/analyses` | Job posting → the whole workflow graph: extraction, fit scoring and then a verified cover letter (strong fit) or a study plan (weak fit). Returns the `runId`, `status`, posting, `fit`, `route` (`strong-fit` / `weak-fit`), the executed node `path`, `coverLetter` and `studyPlan`. A strong fit returns 202 `awaiting-approval` with a `Location`; a weak fit 200 `completed`. Optional `kind` |
+| `GET /api/analyses/{runId}` | The run's `status` (`awaiting-approval`, `approved`, `rejected`, `completed`) and result so far; 404 if unknown |
+| `POST /api/analyses/{runId}/approval` | `{ "approved": true \| false, "feedback": "..." }` resumes the paused run: 200 `approved` / `rejected`, or 202 `awaiting-approval` with a new letter when rejected with feedback. 400 invalid body, 404 unknown run, 409 not awaiting approval |
 
 Example request in [`src/JobFit.Api/JobFit.Api.http`](src/JobFit.Api/JobFit.Api.http):
 
@@ -116,6 +118,23 @@ sentences marked `claim` or `connective` with evidence numbers. A claim without 
 code; an LLM verifier then checks every other sentence, one call each, against its cited evidence (connective sentences must state
 no facts about the candidate). Rejected sentences go back to the writer with the reason, at most twice; whatever
 is still unsupported after the third draft is removed and listed in `coverLetter.removed`.
+
+A strong fit then pauses for human approval:
+
+```
+finalize-cover-letter ──► review-cover-letter (request port: the run pauses) ──► apply-review ──► approved | rejected
+                                                                                         └──► write-cover-letter (rejected with feedback)
+```
+
+`review-cover-letter` is an Agent Framework `RequestPort`. The run is checkpointed after every superstep in the
+`workflow_checkpoints` table and tracked in `analysis_runs` (both created on first use), so it survives API
+restarts; the approval endpoint restores the same run from its checkpoint and answers the pending request.
+Rejecting with feedback sends it to the writer as delimited untrusted data, the new letter goes through the
+same verification loop and the run pauses again; after 3 rejections with feedback a rejection is final. One
+decision per pause is enforced with an atomic `UPDATE … WHERE status = 'awaiting-approval'`: a second or late
+decision returns 409. If a model call fails while resuming, the response is 502 and the run is awaiting
+approval again, so the decision can be retried. Checkpoints use Agent Framework's internal format, so a run
+paused with one package version may not resume on another. There is no authentication or cleanup of old runs.
 
 ## Tests
 

@@ -25,12 +25,14 @@ Non-goals: auth, run expiry, notifications.
   final output; `apply-review` yields the final `AnalysisOutcome` or sends a `LetterDraft` with the feedback back
   to the writer. `plan-study` still yields directly.
 - **Checkpoint store.** `PostgresCheckpointStore : JsonCheckpointStore` over the existing `NpgsqlDataSource`, table
-  `workflow_checkpoints (session_id, checkpoint_id, parent_id, data jsonb, created_at)`, plugged with
+  `workflow_checkpoints (session_id, checkpoint_id, parent_id, data json, created_at)`, plugged with
   `CheckpointManager.CreateJson(store)`. Plain SQL with Npgsql: the data is opaque JSON keyed by session, not
-  vectors, so VectorData does not fit.
-- **Run store.** `analysis_runs (run_id, session_id, checkpoint_id, request jsonb, status, result jsonb,
-  feedback_rounds, updated_at)`. `runId` is the workflow session id. The pending `ExternalRequest` is saved so the
-  response can be created after a restart. Both tables are created on first use (`CREATE TABLE IF NOT EXISTS`),
+  vectors, so VectorData does not fit. The column is `json`, not `jsonb`: `jsonb` reorders keys and the
+  checkpoint relies on System.Text.Json metadata order.
+- **Run store.** `analysis_runs (run_id, checkpoint_id, request jsonb, status, result jsonb, feedback_rounds,
+  updated_at)`. `runId` is the workflow session id. The pending `ExternalRequest` is not stored: the spike showed
+  that `ResumeAsync` from a checkpoint re-emits the pending `RequestInfoEvent` with its data, and the response is
+  created from it. Both tables are created on first use (`CREATE TABLE IF NOT EXISTS`),
   like the vector collection.
 - **One decision per pause.** The approval endpoint claims the run with
   `UPDATE analysis_runs SET status = 'resuming' WHERE run_id = @id AND status = 'awaiting-approval' RETURNING …`;
