@@ -18,6 +18,8 @@
 - [x] 3.2 Integration: strong fit 202 awaiting approval, GET status, approve → approved with path
 - [x] 3.3 Integration: reject without feedback; reject with feedback → new letter 202 with feedback in the prompt; rejection limit
 - [x] 3.4 Integration: 409 for decided runs and for a second decision; resume after recreating the API host
+- [x] 3.6 Integration: a resume interrupted for longer than the 15-minute lease can be claimed again
+- [x] 3.7 Eval: a letter revised with reviewer feedback that asks for absent facts still mentions none of them
 - [x] 3.5 Update existing analysis tests for the new strong-fit status code and fields
 
 ## 4. Docs
