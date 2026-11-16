@@ -9,16 +9,16 @@ requirements, scores the fit and branches on the score, producing a grounded stu
 ### Requirement: Job analysis endpoint
 The system SHALL expose `POST /api/analyses` that accepts a `jobPosting` (required, at most 20,000
 characters) and an optional `kind` (`cv` or `project`), runs the job analysis workflow and returns the
-posting (`title`, `seniority`, `requirements`), the `fit` result of `POST /api/fit/score`, the `route`
-(`strong-fit` or `weak-fit`), the executed `path`, and a `coverLetter` (strong fit) or `studyPlan` (weak fit).
+`runId`, `status`, posting (`title`, `seniority`, `requirements`), `fit`, `route`, the executed `path`, and a
+`coverLetter` (strong fit, 202 awaiting approval) or `studyPlan` (weak fit, 200 completed).
 
 #### Scenario: Strong fit
 - **WHEN** a job posting is analyzed and the fit score is greater than or equal to the configured threshold
-- **THEN** the response is 200 with `route` `strong-fit`, a `coverLetter`, no `studyPlan`, and `path` `["extract-requirements", "score-fit", "write-cover-letter", "verify-cover-letter", "finalize-cover-letter"]` when the first draft is accepted, and the study-plan model is not called
+- **THEN** the response is 202 with `route` `strong-fit`, `status` `awaiting-approval`, a `coverLetter`, no `studyPlan`, and `path` `["extract-requirements", "score-fit", "write-cover-letter", "verify-cover-letter", "finalize-cover-letter"]` when the first draft is accepted, and the study-plan model is not called
 
 #### Scenario: Weak fit
 - **WHEN** a job posting is analyzed and the fit score is below the configured threshold
-- **THEN** the response is 200 with `route` `weak-fit`, `path` `["extract-requirements", "score-fit", "plan-study"]`, a `studyPlan` and no `coverLetter`, and the cover-letter models are not called
+- **THEN** the response is 200 with `route` `weak-fit`, `status` `completed`, `path` `["extract-requirements", "score-fit", "plan-study"]`, a `studyPlan` and no `coverLetter`, and the cover-letter models are not called
 
 #### Scenario: Kind is applied to retrieval
 - **WHEN** an analysis is requested with `kind` `project`
@@ -29,11 +29,10 @@ posting (`title`, `seniority`, `requirements`), the `fit` result of `POST /api/f
 - **THEN** the response is 400 with validation problem details and no model is called
 
 ### Requirement: Workflow graph
-The system SHALL implement the analysis as a Microsoft Agent Framework workflow whose executors are
-`extract-requirements`, `score-fit`, `write-cover-letter`, `verify-cover-letter`, `finalize-cover-letter` and
-`plan-study`, routing from `score-fit` to `write-cover-letter` when the score is greater than or equal to
-`Workflow:FitThreshold` (default 70) and to `plan-study` otherwise, and looping from `verify-cover-letter`
-back to `write-cover-letter` while a rewrite is due.
+The system SHALL implement the analysis as a Microsoft Agent Framework workflow with executors
+`extract-requirements`, `score-fit`, `write-cover-letter`, `verify-cover-letter`, `finalize-cover-letter`,
+`review-cover-letter` (request port), `apply-review` and `plan-study`, routing to `write-cover-letter` when the
+score is at least `Workflow:FitThreshold` (default 70) and to `plan-study` otherwise, looping while a rewrite is due.
 
 #### Scenario: Threshold is configurable
 - **WHEN** `Workflow:FitThreshold` is set to 50 and the fit score is 60
