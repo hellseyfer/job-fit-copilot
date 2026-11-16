@@ -9,13 +9,17 @@ namespace JobFit.Api.Analysis;
 
 public static class AnalysisEndpoints
 {
+    public const int MaxFeedbackLength = 2_000;
+
     public static IEndpointRouteBuilder MapAnalysisEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/analyses", AnalyzeAsync).WithName("AnalyzeJob");
+        app.MapGet("/api/analyses/{runId}", GetAsync).WithName("GetAnalysis");
+        app.MapPost("/api/analyses/{runId}/approval", DecideAsync).WithName("DecideAnalysis");
         return app;
     }
 
-    private static async Task<Results<Ok<AnalyzeJobResponse>, ValidationProblem, ProblemHttpResult>> AnalyzeAsync(
+    private static async Task<Results<Ok<AnalyzeJobResponse>, Accepted<AnalyzeJobResponse>, ValidationProblem, ProblemHttpResult>> AnalyzeAsync(
         AnalyzeJobRequest request,
         JobAnalysisWorkflow workflow,
         ILogger<JobAnalysisWorkflow> logger,
@@ -40,18 +44,74 @@ public static class AnalysisEndpoints
 
         try
         {
-            return TypedResults.Ok(await workflow.RunAsync(request.JobPosting!, request.Kind, cancellationToken));
+            return Respond(await workflow.StartAsync(request.JobPosting!, request.Kind, cancellationToken));
         }
         catch (NoScorableRequirementsException exception)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: exception.Message);
         }
-        catch (Exception exception) when (exception is ExtractionFailedException or EmbeddingFailedException
-                                              or JudgeFailedException or StudyPlanFailedException
-                                              or CoverLetterFailedException)
+        catch (Exception exception) when (IsModelFailure(exception))
         {
             logger.LogError(exception, "A model call failed while analyzing a job posting");
             return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: exception.Message);
         }
     }
+
+    private static async Task<Results<Ok<AnalyzeJobResponse>, ProblemHttpResult>> GetAsync(
+        string runId, JobAnalysisWorkflow workflow, CancellationToken cancellationToken) =>
+        await workflow.GetAsync(runId, cancellationToken) is { } run
+            ? TypedResults.Ok(run)
+            : TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: new AnalysisRunNotFoundException(runId).Message);
+
+    private static async Task<Results<Ok<AnalyzeJobResponse>, Accepted<AnalyzeJobResponse>, ValidationProblem, ProblemHttpResult>> DecideAsync(
+        string runId,
+        ApprovalRequest request,
+        JobAnalysisWorkflow workflow,
+        ILogger<JobAnalysisWorkflow> logger,
+        CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (request.Approved is null)
+        {
+            errors["approved"] = ["The decision is required: true to approve the cover letter, false to reject it."];
+        }
+
+        if (request.Feedback?.Length > MaxFeedbackLength)
+        {
+            errors["feedback"] = [$"The feedback must be at most {MaxFeedbackLength} characters long."];
+        }
+
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        try
+        {
+            return Respond(await workflow.DecideAsync(runId, request.Approved!.Value, request.Feedback, cancellationToken));
+        }
+        catch (AnalysisRunNotFoundException exception)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: exception.Message);
+        }
+        catch (AnalysisRunConflictException exception)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: exception.Message);
+        }
+        catch (Exception exception) when (IsModelFailure(exception))
+        {
+            logger.LogError(exception, "A model call failed while resuming analysis run {RunId}", runId);
+            return TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway, title: exception.Message);
+        }
+    }
+
+    private static Results<Ok<AnalyzeJobResponse>, Accepted<AnalyzeJobResponse>, ValidationProblem, ProblemHttpResult> Respond(
+        AnalyzeJobResponse response) =>
+        response.Status == AnalysisStatus.AwaitingApproval
+            ? TypedResults.Accepted($"/api/analyses/{response.RunId}", response)
+            : TypedResults.Ok(response);
+
+    private static bool IsModelFailure(Exception exception) =>
+        exception is ExtractionFailedException or EmbeddingFailedException or JudgeFailedException
+            or StudyPlanFailedException or CoverLetterFailedException;
 }

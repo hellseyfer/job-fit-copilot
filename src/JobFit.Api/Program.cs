@@ -29,6 +29,8 @@ builder.Services.Configure<WorkflowOptions>(builder.Configuration.GetSection("Wo
 builder.Services.AddSingleton<StudyPlanner>();
 builder.Services.AddSingleton<CoverLetterWriter>();
 builder.Services.AddSingleton<CoverLetterVerifier>();
+builder.Services.AddSingleton<PostgresCheckpointStore>();
+builder.Services.AddSingleton<AnalysisRunStore>();
 builder.Services.AddSingleton<JobAnalysisWorkflow>();
 
 var app = builder.Build();

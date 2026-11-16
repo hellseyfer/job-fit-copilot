@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using JobFit.Api.Tests;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace JobFit.IntegrationTests;
 
@@ -273,6 +274,233 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         Assert.All(chat, c => Assert.Equal(run.TraceId, c.TraceId));
     }
 
+    [Fact]
+    public async Task Strong_fit_waits_for_approval_with_a_location_and_status()
+    {
+        await PutAsync(NewId(), "cv", Cv);
+        _extraction = Extraction(("PostgreSQL", "must-have"), ("Kubernetes", "nice-to-have"));
+
+        using var response = await PostAsync(new { jobPosting = Posting });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var body = (await response.Content.ReadFromJsonAsync<JsonNode>())!;
+        var runId = body["runId"]!.GetValue<string>();
+        Assert.Equal($"/api/analyses/{runId}", response.Headers.Location!.OriginalString);
+        Assert.Equal("awaiting-approval", body["status"]!.GetValue<string>());
+        Assert.NotNull(body["coverLetter"]);
+
+        var run = await GetRunAsync(runId);
+        Assert.Equal("awaiting-approval", run["status"]!.GetValue<string>());
+        Assert.Equal(body["coverLetter"]!.ToJsonString(), run["coverLetter"]!.ToJsonString());
+        Assert.Equal(Path(body), Path(run));
+    }
+
+    [Fact]
+    public async Task Approve_resumes_the_run()
+    {
+        var runId = await PausedRunAsync();
+        var paused = await GetRunAsync(runId);
+
+        var body = await DecideAsync(runId, new { approved = true }, HttpStatusCode.OK);
+
+        Assert.Equal("approved", body["status"]!.GetValue<string>());
+        Assert.Equal(runId, body["runId"]!.GetValue<string>());
+        Assert.Equal(paused["coverLetter"]!.ToJsonString(), body["coverLetter"]!.ToJsonString());
+        Assert.Equal([.. Path(paused), "review-cover-letter", "apply-review"], Path(body));
+        Assert.Equal(1, _writerCalls);
+        Assert.Equal("approved", (await GetRunAsync(runId))["status"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Reject_without_feedback_ends_the_run()
+    {
+        var runId = await PausedRunAsync();
+
+        var body = await DecideAsync(runId, new { approved = false, feedback = "  " }, HttpStatusCode.OK);
+
+        Assert.Equal("rejected", body["status"]!.GetValue<string>());
+        Assert.Equal(1, _writerCalls);
+        Assert.Equal("rejected", (await GetRunAsync(runId))["status"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Reject_with_feedback_writes_and_verifies_a_new_letter()
+    {
+        var runId = await PausedRunAsync();
+        var verifierCalls = _verifierCalls;
+
+        var body = await DecideAsync(
+            runId, new { approved = false, feedback = "Mention the PostgreSQL work first" }, HttpStatusCode.Accepted);
+
+        Assert.Equal("awaiting-approval", body["status"]!.GetValue<string>());
+        Assert.Equal(2, _writerCalls);
+        Assert.True(_verifierCalls > verifierCalls);
+        Assert.Contains("<reviewer_feedback>\nMention the PostgreSQL work first\n</reviewer_feedback>", _writerPrompts.Last());
+        Assert.Contains("<rejected_letter>", _writerPrompts.Last());
+        Assert.Equal(1, body["coverLetter"]!["attempts"]!.GetValue<int>());
+        Assert.Equal(
+            ["extract-requirements", "score-fit", "write-cover-letter", "verify-cover-letter", "finalize-cover-letter",
+             "review-cover-letter", "apply-review", "write-cover-letter", "verify-cover-letter", "finalize-cover-letter"],
+            Path(body));
+
+        var approved = await DecideAsync(runId, new { approved = true }, HttpStatusCode.OK);
+        Assert.Equal("approved", approved["status"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Rejection_after_three_feedback_rounds_is_final()
+    {
+        var runId = await PausedRunAsync();
+        for (var round = 1; round <= 3; round++)
+        {
+            await DecideAsync(runId, new { approved = false, feedback = $"Round {round}" }, HttpStatusCode.Accepted);
+        }
+
+        Assert.Equal(4, _writerCalls);
+
+        var body = await DecideAsync(runId, new { approved = false, feedback = "Round 4" }, HttpStatusCode.OK);
+
+        Assert.Equal("rejected", body["status"]!.GetValue<string>());
+        Assert.Equal(4, _writerCalls);
+    }
+
+    [Fact]
+    public async Task Invalid_decision_returns_400_and_keeps_the_run_waiting()
+    {
+        var runId = await PausedRunAsync();
+
+        using (var missing = await DecideAsync(runId, new { feedback = "ok" }))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        }
+
+        using (var tooLong = await DecideAsync(runId, new { approved = false, feedback = new string('x', 2001) }))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
+        }
+
+        Assert.Equal("awaiting-approval", (await GetRunAsync(runId))["status"]!.GetValue<string>());
+        Assert.Equal(1, _writerCalls);
+    }
+
+    [Fact]
+    public async Task Unknown_run_returns_404()
+    {
+        using var get = await _client.GetAsync("/api/analyses/unknown-run");
+        using var decide = await DecideAsync("unknown-run", new { approved = true });
+
+        Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, decide.StatusCode);
+    }
+
+    [Fact]
+    public async Task Decision_for_a_decided_or_completed_run_returns_409()
+    {
+        var runId = await PausedRunAsync();
+        await DecideAsync(runId, new { approved = false }, HttpStatusCode.OK);
+
+        using (var again = await DecideAsync(runId, new { approved = true }))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        }
+
+        Assert.Equal("rejected", (await GetRunAsync(runId))["status"]!.GetValue<string>());
+
+        _extraction = Extraction(("PostgreSQL", "must-have"), ("Rust", "must-have"));
+        var weak = await AnalyzeAsync(new { jobPosting = Posting });
+        using var completed = await DecideAsync(weak["runId"]!.GetValue<string>(), new { approved = true });
+        Assert.Equal(HttpStatusCode.Conflict, completed.StatusCode);
+    }
+
+    [Fact]
+    public async Task Only_one_of_two_concurrent_decisions_is_accepted()
+    {
+        var runId = await PausedRunAsync();
+
+        var responses = await Task.WhenAll(
+            DecideAsync(runId, new { approved = true }), DecideAsync(runId, new { approved = false }));
+
+        var codes = responses.Select(r => r.StatusCode).OrderBy(c => c).ToList();
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.Conflict], codes);
+        foreach (var response in responses)
+        {
+            response.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Run_resumes_after_the_api_restarts()
+    {
+        var runId = await PausedRunAsync();
+
+        CreateClient();
+        var body = await DecideAsync(runId, new { approved = true }, HttpStatusCode.OK);
+
+        Assert.Equal("approved", body["status"]!.GetValue<string>());
+        Assert.Equal("apply-review", Path(body).Last());
+    }
+
+    [Fact]
+    public async Task Interrupted_resume_can_be_claimed_again_after_the_lease()
+    {
+        var runId = await PausedRunAsync();
+        await SetResumingAsync(runId, DateTimeOffset.UtcNow);
+
+        using (var fresh = await DecideAsync(runId, new { approved = true }))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, fresh.StatusCode);
+        }
+
+        await SetResumingAsync(runId, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(16));
+        var body = await DecideAsync(runId, new { approved = true }, HttpStatusCode.OK);
+
+        Assert.Equal("approved", body["status"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Resume_whose_claim_expired_cannot_overwrite_the_newer_decision()
+    {
+        var runId = await PausedRunAsync();
+        var store = _factory.Services.GetRequiredService<JobFit.Api.Analysis.AnalysisRunStore>();
+        var slow = (await store.ClaimAsync(runId, CancellationToken.None))!;
+
+        await SetResumingAsync(runId, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(16));
+        var approved = await DecideAsync(runId, new { approved = true }, HttpStatusCode.OK);
+
+        Assert.False(await store.UpdateAsync(slow.ClaimId, slow.Response, slow.CheckpointId, 0, CancellationToken.None));
+        await store.ReleaseAsync(runId, slow.ClaimId, CancellationToken.None);
+        Assert.Equal(approved.ToJsonString(), (await GetRunAsync(runId)).ToJsonString());
+    }
+
+    // Leaves the run as an API that stopped mid-resume would: claimed at the given time.
+    private async Task SetResumingAsync(string runId, DateTimeOffset claimedAt)
+    {
+        await using var dataSource = Npgsql.NpgsqlDataSource.Create(database.ConnectionString);
+        await using var command = dataSource.CreateCommand(
+            "UPDATE analysis_runs SET status = 'resuming', updated_at = @at WHERE run_id = @id");
+        command.Parameters.AddWithValue("id", runId);
+        command.Parameters.AddWithValue("at", claimedAt);
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+    }
+
+    [Fact]
+    public async Task Model_failure_while_resuming_returns_502_and_the_run_can_be_retried()
+    {
+        var runId = await PausedRunAsync();
+        _writer = () => throw new HttpRequestException("down");
+
+        using (var failed = await DecideAsync(runId, new { approved = false, feedback = "Shorter, please" }))
+        {
+            Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
+        }
+
+        Assert.Equal("awaiting-approval", (await GetRunAsync(runId))["status"]!.GetValue<string>());
+
+        _writer = null;
+        var retried = await DecideAsync(runId, new { approved = false, feedback = "Shorter, please" }, HttpStatusCode.Accepted);
+        Assert.Equal("awaiting-approval", retried["status"]!.GetValue<string>());
+    }
+
     // Supports the checked sentence unless it is about Rust and Rust is rejected.
     private static string Check(string prompt, bool rejectRust = false) =>
         rejectRust && prompt.Contains("Rust", StringComparison.Ordinal)
@@ -370,10 +598,39 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
 
     private Task<HttpResponseMessage> PostAsync(object body) => _client.PostAsJsonAsync("/api/analyses", body);
 
+    // A strong fit pauses for approval (202); a weak fit completes (200).
     private async Task<JsonNode> AnalyzeAsync(object body)
     {
         using var response = await PostAsync(body);
+        var json = (await response.Content.ReadFromJsonAsync<JsonNode>())!;
+        var strongFit = json["route"]?.GetValue<string>() == "strong-fit";
+        Assert.Equal(strongFit ? HttpStatusCode.Accepted : HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(strongFit ? "awaiting-approval" : "completed", json["status"]!.GetValue<string>());
+        Assert.False(string.IsNullOrEmpty(json["runId"]?.GetValue<string>()));
+        return json;
+    }
+
+    private Task<HttpResponseMessage> DecideAsync(string runId, object body) =>
+        _client.PostAsJsonAsync($"/api/analyses/{runId}/approval", body);
+
+    private async Task<JsonNode> DecideAsync(string runId, object body, HttpStatusCode expected)
+    {
+        using var response = await DecideAsync(runId, body);
+        Assert.Equal(expected, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<JsonNode>())!;
+    }
+
+    private async Task<JsonNode> GetRunAsync(string runId)
+    {
+        using var response = await _client.GetAsync($"/api/analyses/{runId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<JsonNode>())!;
+    }
+
+    private async Task<string> PausedRunAsync()
+    {
+        await PutAsync(NewId(), "cv", Cv);
+        _extraction = Extraction(("PostgreSQL", "must-have"), ("Kubernetes", "nice-to-have"));
+        return (await AnalyzeAsync(new { jobPosting = Posting }))["runId"]!.GetValue<string>();
     }
 }

@@ -25,6 +25,22 @@ public class AnalysisEndpointTests
         Assert.Equal(0, embeddings.CallCount);
     }
 
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData(false, 2001)]
+    public async Task Invalid_approval_returns_400_without_touching_the_run(bool? approved, int? feedbackLength)
+    {
+        var chat = FakeChatClient.Returning("{}");
+        await using var factory = new JobFitApiFactory(chat);
+        var feedback = feedbackLength is { } length ? new string('a', length) : null;
+
+        using var response = await factory.CreateClient().PostAsJsonAsync(
+            "/api/analyses/run-1/approval", new { approved, feedback });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(0, chat.CallCount);
+    }
+
     [Fact]
     public async Task Too_long_posting_returns_400()
     {

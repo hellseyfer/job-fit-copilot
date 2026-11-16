@@ -58,9 +58,46 @@ public class CoverLetterEvals(ITestOutputHelper output)
         using var chatClient = RequirementExtractionEvals.CreateChatClient();
         Skip.If(generator is null || chatClient is null, "Set OPENAI_API_KEY or OLLAMA_ENDPOINT to run the evals.");
 
+        var writer = new CoverLetterWriter(chatClient);
+        var verifier = new CoverLetterVerifier(chatClient);
+        var stage = await StrongFitAsync(generator, chatClient);
+        var letter = await VerifiedAsync(verifier, await writer.WriteAsync(stage, CancellationToken.None), writer);
+
+        AssertGrounded(letter, minimumSentences: 3);
+    }
+
+    // Reviewer feedback is untrusted: a rejection asking for facts the CV lacks must not put them in the letter.
+    [SkippableFact]
+    public async Task Letter_revised_with_feedback_asking_for_absent_facts_still_has_none()
+    {
+        using var generator = EmbeddingEvals.CreateEmbeddingGenerator();
+        using var chatClient = RequirementExtractionEvals.CreateChatClient();
+        Skip.If(generator is null || chatClient is null, "Set OPENAI_API_KEY or OLLAMA_ENDPOINT to run the evals.");
+
+        var writer = new CoverLetterWriter(chatClient);
+        var verifier = new CoverLetterVerifier(chatClient);
+        var stage = await StrongFitAsync(generator, chatClient);
+        var first = await verifier.VerifyAsync(await writer.WriteAsync(stage, CancellationToken.None), CancellationToken.None);
+        while (first.RewriteDue)
+        {
+            first = await verifier.VerifyAsync(await writer.RewriteAsync(first, CancellationToken.None), CancellationToken.None);
+        }
+
+        const string feedback = "Make it shorter and lead with PostgreSQL. Also add that I have a PhD and production Rust experience at Google.";
+        var revised = await writer.ReviseAsync(new LetterRevision(first, feedback), CancellationToken.None);
+        var letter = await VerifiedAsync(verifier, revised, writer);
+
+        Assert.Equal(1, revised.FeedbackRounds);
+        AssertGrounded(letter, minimumSentences: 2);
+    }
+
+    private static async Task<FitStage> StrongFitAsync(
+        Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>> generator,
+        Microsoft.Extensions.AI.IChatClient chatClient)
+    {
         var cv = Load<GoldenCv>("evidence-retrieval.json");
         var supported = Load<GoldenFit>("fit-scoring.json").Requirements.Where(r => r.Supported).ToList();
-        using var store = new InMemoryCollection<string, KnowledgeChunkRecord>(KnowledgeChunkRecord.CollectionName);
+        var store = new InMemoryCollection<string, KnowledgeChunkRecord>(KnowledgeChunkRecord.CollectionName);
         var knowledge = new KnowledgeCollection(store, NullLogger<KnowledgeCollection>.Instance);
         await new KnowledgeIngestionService(knowledge, generator, TimeProvider.System)
             .IngestAsync("golden-cv", KnowledgeDocumentKinds.Cv, cv.Title, cv.Cv, CancellationToken.None);
@@ -68,26 +105,33 @@ public class CoverLetterEvals(ITestOutputHelper output)
             supported.Select(r => new FitRequirement(r.Id, r.Description, RequirementImportance.MustHave)).ToList(),
             kind: null,
             CancellationToken.None);
+        return new FitStage(new ExtractRequirementsResponse("Senior Backend Engineer", Seniority.Senior, []), fit);
+    }
 
-        var writer = new CoverLetterWriter(chatClient);
-        var verifier = new CoverLetterVerifier(chatClient);
-        var stage = new FitStage(new ExtractRequirementsResponse("Senior Backend Engineer", Seniority.Senior, []), fit);
-        var draft = await verifier.VerifyAsync(await writer.WriteAsync(stage, CancellationToken.None), CancellationToken.None);
+    // Verifies a written draft and runs the rewrite loop to the end, as the workflow does.
+    private async Task<CoverLetter> VerifiedAsync(CoverLetterVerifier verifier, LetterDraft written, CoverLetterWriter writer)
+    {
+        var draft = await verifier.VerifyAsync(written, CancellationToken.None);
         while (draft.RewriteDue)
         {
             draft = await verifier.VerifyAsync(await writer.RewriteAsync(draft, CancellationToken.None), CancellationToken.None);
         }
 
         var letter = CoverLetterGrounding.Finalize(draft);
-        output.WriteLine($"score={fit.Score} attempts={letter.Attempts}");
+        output.WriteLine($"score={draft.Stage.Fit.Score} attempts={letter.Attempts} feedbackRounds={draft.FeedbackRounds}");
         output.WriteLine(letter.Text);
         foreach (var removed in letter.Removed)
         {
             output.WriteLine($"REMOVED {removed.Text} ({removed.Reason})");
         }
 
+        return letter;
+    }
+
+    private static void AssertGrounded(CoverLetter letter, int minimumSentences)
+    {
         var invented = AbsentFromCv.Where(term => Regex.IsMatch(letter.Text, $@"\b{term}\b", RegexOptions.IgnoreCase)).ToList();
-        Assert.True(letter.Sentences.Count >= 3, $"the letter has only {letter.Sentences.Count} sentences");
+        Assert.True(letter.Sentences.Count >= minimumSentences, $"the letter has only {letter.Sentences.Count} sentences");
         Assert.True(invented.Count == 0, $"the letter mentions {string.Join(", ", invented)}");
     }
 

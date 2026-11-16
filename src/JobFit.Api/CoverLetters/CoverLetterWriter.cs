@@ -26,15 +26,42 @@ public sealed class CoverLetterWriter(IChatClient chatClient)
     public Task<LetterDraft> WriteAsync(FitStage stage, CancellationToken cancellationToken)
     {
         var evidence = CoverLetterGrounding.NumberEvidence(stage.Fit.Assessments);
-        return DraftAsync(stage, evidence, Prompt(stage, evidence, previous: null), attempt: 1, cancellationToken);
+        return DraftAsync(new LetterDraft(stage, evidence, 1, []), Prompt(stage, evidence, feedback: null), cancellationToken);
     }
 
-    public Task<LetterDraft> RewriteAsync(LetterDraft previous, CancellationToken cancellationToken) =>
-        DraftAsync(
-            previous.Stage, previous.Evidence, Prompt(previous.Stage, previous.Evidence, previous), previous.Attempt + 1, cancellationToken);
+    // Rewrites a draft the verifier rejected, keeping the reviewer feedback of this round if there is one.
+    public Task<LetterDraft> RewriteAsync(LetterDraft previous, CancellationToken cancellationToken)
+    {
+        var prompt = new StringBuilder(Prompt(previous.Stage, previous.Evidence, previous.Feedback));
+        if (previous.Verdicts is { } verdicts)
+        {
+            prompt.AppendLine("<previous_draft>");
+            for (var i = 0; i < previous.Sentences.Count; i++)
+            {
+                var status = verdicts[i].Supported ? "supported" : $"rejected: {verdicts[i].Reason}";
+                prompt.AppendLine($"<sentence n=\"{i + 1}\" status=\"{status}\">{previous.Sentences[i].Text}</sentence>");
+            }
 
-    private async Task<LetterDraft> DraftAsync(
-        FitStage stage, IReadOnlyList<EvidenceItem> evidence, string prompt, int attempt, CancellationToken cancellationToken)
+            prompt.AppendLine("</previous_draft>");
+            prompt.AppendLine("Rewrite the whole letter. Fix or drop every rejected sentence and keep the supported ones.");
+        }
+
+        return DraftAsync(previous with { Attempt = previous.Attempt + 1 }, prompt.ToString(), cancellationToken);
+    }
+
+    // Writes a new letter after the reviewer rejected the final one with feedback; the verification loop starts over.
+    public Task<LetterDraft> ReviseAsync(LetterRevision revision, CancellationToken cancellationToken)
+    {
+        var reviewed = revision.Reviewed;
+        var prompt = new StringBuilder(Prompt(reviewed.Stage, reviewed.Evidence, revision.Feedback));
+        prompt.AppendLine($"<rejected_letter>{CoverLetterGrounding.Finalize(reviewed).Text}</rejected_letter>");
+        prompt.AppendLine("The reviewer rejected this letter. Write the whole letter again following the reviewer feedback.");
+        var next = reviewed with { Attempt = 1, Feedback = revision.Feedback, FeedbackRounds = reviewed.FeedbackRounds + 1 };
+        return DraftAsync(next, prompt.ToString(), cancellationToken);
+    }
+
+    // Asks the model for the sentences of `next`, which carries the stage, evidence, attempt and feedback.
+    private async Task<LetterDraft> DraftAsync(LetterDraft next, string prompt, CancellationToken cancellationToken)
     {
         ChatResponse<WrittenLetter> response;
         try
@@ -56,10 +83,10 @@ public sealed class CoverLetterWriter(IChatClient chatClient)
             throw new CoverLetterFailedException("The cover letter writer output does not match the expected structure.");
         }
 
-        return new LetterDraft(stage, evidence, attempt, CoverLetterGrounding.Sentences(written, evidence.Count));
+        return next with { Sentences = CoverLetterGrounding.Sentences(written, next.Evidence.Count), Verdicts = null };
     }
 
-    private static string Prompt(FitStage stage, IReadOnlyList<EvidenceItem> evidence, LetterDraft? previous)
+    private static string Prompt(FitStage stage, IReadOnlyList<EvidenceItem> evidence, string? feedback)
     {
         var prompt = new StringBuilder();
         prompt.AppendLine($"<job_title>{stage.Posting.Title}</job_title>");
@@ -76,17 +103,9 @@ public sealed class CoverLetterWriter(IChatClient chatClient)
             prompt.AppendLine($"<evidence n=\"{i + 1}\" section=\"{evidence[i].Section}\">\n{evidence[i].Text}\n</evidence>");
         }
 
-        if (previous?.Verdicts is { } verdicts)
+        if (feedback is not null)
         {
-            prompt.AppendLine("<previous_draft>");
-            for (var i = 0; i < previous.Sentences.Count; i++)
-            {
-                var status = verdicts[i].Supported ? "supported" : $"rejected: {verdicts[i].Reason}";
-                prompt.AppendLine($"<sentence n=\"{i + 1}\" status=\"{status}\">{previous.Sentences[i].Text}</sentence>");
-            }
-
-            prompt.AppendLine("</previous_draft>");
-            prompt.AppendLine("Rewrite the whole letter. Fix or drop every rejected sentence and keep the supported ones.");
+            prompt.AppendLine($"<reviewer_feedback>\n{feedback}\n</reviewer_feedback>");
         }
 
         return prompt.ToString();
