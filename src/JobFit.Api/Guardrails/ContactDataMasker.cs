@@ -26,6 +26,9 @@ public static partial class ContactDataMasker
     private static string MaskPhones(string text) => PhonePattern().Replace(text, match =>
     {
         var candidate = match.Value;
+        // A country or area code makes the whole run a phone, even when its digits look like a date.
+        if (candidate[0] is '+' or '(')
+            return MaskSegment(candidate);
         var masked = new StringBuilder();
         var position = 0;
         foreach (Match date in DateToken().Matches(candidate))
@@ -67,10 +70,10 @@ public static partial class ContactDataMasker
     private static partial Regex UrlPattern();
 
     // Digit groups joined by a dot, a hyphen or spaces, with an optional country code and area code in parentheses.
-    [GeneratedRegex(@"(?<![\w+.])(?:\+\d{1,3}(?:[.-]|[ \t]+)?)?(?:\(\d{1,4}\)(?:[.-]|[ \t]+)?)?\d+(?:(?:[.-]|[ \t]+)\d+){0,5}(?![\w%])")]
+    [GeneratedRegex(@"(?<![\w+.])(?:\+[0-9]{1,3}(?:[.-]|[ \t]+)?)?(?:\([0-9]{1,4}\)(?:[.-]|[ \t]+)?)?[0-9]+(?:(?:[.-]|[ \t]+)[0-9]+){0,5}(?![\w%])")]
     private static partial Regex PhonePattern();
 
     // A whole whitespace-separated date (2024-01-15, 15.01.2024) or year range (2020-2025) inside a candidate.
-    [GeneratedRegex(@"(?<!\S)(?:(?<year>\d{4})(?<s>[.-])(?<month>\d{1,2})\k<s>(?<day>\d{1,2})|(?<day2>\d{1,2})(?<s2>[.-])(?<month2>\d{1,2})\k<s2>(?<year2>\d{4})|(?<from>\d{4})-(?<to>\d{4}))(?!\S)")]
+    [GeneratedRegex(@"(?<!\S)(?:(?<year>[0-9]{4})(?<s>[.-])(?<month>[0-9]{1,2})\k<s>(?<day>[0-9]{1,2})|(?<day2>[0-9]{1,2})(?<s2>[.-])(?<month2>[0-9]{1,2})\k<s2>(?<year2>[0-9]{4})|(?<from>[0-9]{4})-(?<to>[0-9]{4}))(?!\S)")]
     private static partial Regex DateToken();
 }

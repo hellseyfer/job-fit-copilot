@@ -56,7 +56,8 @@ content hash is computed on the masked content.
 - URL: `http(s)://…` and `www.…`.
 - Phone: a run of digit groups joined by spaces, a dot or a dash, with an optional `+` country code and an area code
   in parentheses. Inside a run, whole dates (`2024-01-15`) and year ranges (`2020-2025`, at most 100 years apart) are
-  kept; every other part with 8 digits or more becomes `[phone]`. Percentages and shorter numbers are kept.
+  kept, unless the run starts with a country or area code; every other part with 8 ASCII digits or more becomes
+  `[phone]`. Percentages and shorter numbers are kept.
 - This is best effort: a phone written exactly like a date or a year range is not masked, and phones written
   together become a single `[phone]`.
 Only knowledge documents are masked (proposal - Out of scope).
