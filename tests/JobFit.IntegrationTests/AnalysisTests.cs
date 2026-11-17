@@ -4,8 +4,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using JobFit.Api.Tests;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace JobFit.IntegrationTests;
 
@@ -272,6 +274,42 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
 
         Assert.Equal(5, chat.Count);
         Assert.All(chat, c => Assert.Equal(run.TraceId, c.TraceId));
+    }
+
+    [Fact]
+    public async Task Analysis_at_trace_level_keeps_the_posting_and_the_evidence_out_of_logs_and_traces()
+    {
+        const string marker = "Zanzibar-quantum-ledger";
+        const string evidence = "Tuned PostgreSQL queries for the payments platform";
+        await PutAsync(NewId(), "cv", Cv);
+        var logs = new CapturingLoggerProvider();
+        var spans = new ConcurrentQueue<string>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => spans.Enqueue(string.Join(" ",
+                activity.TagObjects.Select(t => $"{t.Key}={t.Value}")
+                    .Concat(activity.Events.SelectMany(e => e.Tags.Select(t => $"{e.Name}:{t.Key}={t.Value}"))))),
+        };
+        ActivitySource.AddActivityListener(listener);
+        await using var factory = _factory.WithWebHostBuilder(b => b.ConfigureLogging(l =>
+        {
+            l.SetMinimumLevel(LogLevel.Trace);
+            l.AddFilter(_ => true);
+            l.AddProvider(logs);
+        }));
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/analyses", new { jobPosting = $"{Posting} Bonus: {marker}." });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(_judgeCalls > 0);
+        Assert.NotEmpty(logs.Messages);
+        string[] secrets = [Posting, marker, evidence];
+        Assert.DoesNotContain(logs.Messages, m => secrets.Any(m.Contains));
+        Assert.NotEmpty(spans);
+        Assert.DoesNotContain(spans, s => secrets.Any(s.Contains));
     }
 
     [Fact]
