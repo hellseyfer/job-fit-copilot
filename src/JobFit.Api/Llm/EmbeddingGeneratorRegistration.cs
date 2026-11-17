@@ -31,6 +31,5 @@ public static class EmbeddingGeneratorRegistration
     public static EmbeddingGeneratorBuilder<string, Embedding<float>> UseJobFitPipeline(
         this EmbeddingGeneratorBuilder<string, Embedding<float>> builder) =>
         builder
-            .UseOpenTelemetry()
-            .UseLogging();
+            .UseOpenTelemetry();
 }

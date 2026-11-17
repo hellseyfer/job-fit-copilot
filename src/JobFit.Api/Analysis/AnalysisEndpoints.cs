@@ -1,6 +1,7 @@
 using JobFit.Api.CoverLetters;
 using JobFit.Api.Evidence;
 using JobFit.Api.Fit;
+using JobFit.Api.Guardrails;
 using JobFit.Api.Knowledge;
 using JobFit.Api.Requirements;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -22,6 +23,7 @@ public static class AnalysisEndpoints
     private static async Task<Results<Ok<AnalyzeJobResponse>, Accepted<AnalyzeJobResponse>, ValidationProblem, ProblemHttpResult>> AnalyzeAsync(
         AnalyzeJobRequest request,
         JobAnalysisWorkflow workflow,
+        InputGuard guard,
         ILogger<JobAnalysisWorkflow> logger,
         CancellationToken cancellationToken)
     {
@@ -44,7 +46,17 @@ public static class AnalysisEndpoints
 
         try
         {
+            await guard.ScreenAsync("jobPosting", request.JobPosting, cancellationToken);
             return Respond(await workflow.StartAsync(request.JobPosting!, request.Kind, cancellationToken));
+        }
+        catch (PromptInjectionException exception)
+        {
+            return InputGuard.Problem(exception);
+        }
+        catch (GuardrailFailedException exception)
+        {
+            logger.LogError(exception, "The guardrail classifier failed while screening a job posting");
+            return InputGuard.Problem(exception);
         }
         catch (NoScorableRequirementsException exception)
         {
@@ -67,6 +79,7 @@ public static class AnalysisEndpoints
         string runId,
         ApprovalRequest request,
         JobAnalysisWorkflow workflow,
+        InputGuard guard,
         ILogger<JobAnalysisWorkflow> logger,
         CancellationToken cancellationToken)
     {
@@ -88,7 +101,18 @@ public static class AnalysisEndpoints
 
         try
         {
+            // Screened before the run is claimed, so a blocked feedback leaves it awaiting approval.
+            await guard.ScreenAsync("feedback", request.Feedback, cancellationToken);
             return Respond(await workflow.DecideAsync(runId, request.Approved!.Value, request.Feedback, cancellationToken));
+        }
+        catch (PromptInjectionException exception)
+        {
+            return InputGuard.Problem(exception);
+        }
+        catch (GuardrailFailedException exception)
+        {
+            logger.LogError(exception, "The guardrail classifier failed while screening feedback for run {RunId}", runId);
+            return InputGuard.Problem(exception);
         }
         catch (AnalysisRunNotFoundException exception)
         {

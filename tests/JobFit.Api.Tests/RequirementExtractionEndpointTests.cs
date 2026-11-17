@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 
 namespace JobFit.Api.Tests;
 
+[Collection(TelemetryCollection.Name)]
 public class RequirementExtractionEndpointTests
 {
     private const string Endpoint = "/api/requirements/extract";

@@ -19,6 +19,8 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
 
     public int CallCount { get; private set; }
 
+    public System.Collections.Concurrent.ConcurrentQueue<string> Inputs { get; } = new();
+
     public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
         IEnumerable<string> values, EmbeddingGenerationOptions? options = null, CancellationToken cancellationToken = default)
     {
@@ -29,6 +31,11 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
         }
 
         var inputs = values.ToList();
+        foreach (var input in inputs)
+        {
+            Inputs.Enqueue(input);
+        }
+
         var embeddings = new GeneratedEmbeddings<Embedding<float>>(
             inputs.Select(input => new Embedding<float>(VectorFor?.Invoke(input, Dimensions) ?? Vectorize(input)) { ModelId = Model }))
         {
