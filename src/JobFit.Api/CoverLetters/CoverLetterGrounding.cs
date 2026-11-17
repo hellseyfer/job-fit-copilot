@@ -53,10 +53,14 @@ public static partial class CoverLetterGrounding
 
         var sentences = (written.Sentences ?? [])
             .Where(s => !string.IsNullOrWhiteSpace(s?.Text))
-            .Select(s => new LetterSentence(
-                s!.Text!.Trim(),
-                s.Kind ?? SentenceKind.Claim,
-                (s.Evidence ?? []).Where(n => n >= 1 && n <= evidenceCount).Distinct().ToList()))
+            .SelectMany(s =>
+            {
+                var kind = s!.Kind ?? SentenceKind.Claim;
+                var cited = (s.Evidence ?? []).Where(n => n >= 1 && n <= evidenceCount).Distinct().ToList();
+                return SentenceSplitPattern().Split(s.Text!.Trim())
+                    .Where(part => !string.IsNullOrWhiteSpace(part))
+                    .Select(part => new LetterSentence(part.Trim(), kind, cited));
+            })
             .ToList();
 
         return sentences.Count > 0
@@ -109,6 +113,9 @@ public static partial class CoverLetterGrounding
 
     [GeneratedRegex(@"[\p{L}\p{N}#+./-]{2,}")]
     private static partial Regex TokenPattern();
+
+    [GeneratedRegex(@"(?<=[.!?])\s+(?=[A-Z])")]
+    private static partial Regex SentenceSplitPattern();
 
     // Keeps the supported sentences of a verified draft and reports the others.
     public static CoverLetter Finalize(LetterDraft draft)
