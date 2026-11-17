@@ -7,6 +7,7 @@ using JobFit.Api.Fit;
 using JobFit.Api.Guardrails;
 using JobFit.Api.Knowledge;
 using JobFit.Api.Llm;
+using JobFit.Api.Observability;
 using JobFit.Api.Requirements;
 using Npgsql;
 
@@ -23,6 +24,8 @@ builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.KebabCaseLower)));
 builder.Services.Configure<GuardrailOptions>(builder.Configuration.GetSection("Guardrails"));
+builder.Services.Configure<ObservabilityOptions>(builder.Configuration.GetSection("Observability"));
+builder.Services.AddSingleton<UsageTracker>();
 builder.Services.AddSingleton<InjectionClassifier>();
 builder.Services.AddSingleton<InputGuard>();
 builder.Services.AddSingleton<RequirementExtractor>();

@@ -1,4 +1,5 @@
 using JobFit.Api.Knowledge;
+using JobFit.Api.Observability;
 using Microsoft.Extensions.AI;
 
 namespace JobFit.Api.Llm;
@@ -31,5 +32,10 @@ public static class EmbeddingGeneratorRegistration
     public static EmbeddingGeneratorBuilder<string, Embedding<float>> UseJobFitPipeline(
         this EmbeddingGeneratorBuilder<string, Embedding<float>> builder) =>
         builder
+            .Use((inner, services) =>
+            {
+                var tracker = services.GetService<UsageTracker>();
+                return tracker is null ? inner : new UsageTrackingEmbeddingGenerator(inner, tracker);
+            })
             .UseOpenTelemetry();
 }

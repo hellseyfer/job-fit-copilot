@@ -3,6 +3,7 @@ using JobFit.Api.Evidence;
 using JobFit.Api.Fit;
 using JobFit.Api.Guardrails;
 using JobFit.Api.Knowledge;
+using JobFit.Api.Observability;
 using JobFit.Api.Requirements;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -24,6 +25,7 @@ public static class AnalysisEndpoints
         AnalyzeJobRequest request,
         JobAnalysisWorkflow workflow,
         InputGuard guard,
+        UsageTracker usageTracker,
         ILogger<JobAnalysisWorkflow> logger,
         CancellationToken cancellationToken)
     {
@@ -46,6 +48,7 @@ public static class AnalysisEndpoints
 
         try
         {
+            using var usageScope = usageTracker.BeginScope();
             await guard.ScreenAsync("jobPosting", request.JobPosting, cancellationToken);
             return Respond(await workflow.StartAsync(request.JobPosting!, request.Kind, cancellationToken));
         }
@@ -80,6 +83,7 @@ public static class AnalysisEndpoints
         ApprovalRequest request,
         JobAnalysisWorkflow workflow,
         InputGuard guard,
+        UsageTracker usageTracker,
         ILogger<JobAnalysisWorkflow> logger,
         CancellationToken cancellationToken)
     {
@@ -101,6 +105,7 @@ public static class AnalysisEndpoints
 
         try
         {
+            using var usageScope = usageTracker.BeginScope();
             // Screened before the run is claimed, so a blocked feedback leaves it awaiting approval.
             await guard.ScreenAsync("feedback", request.Feedback, cancellationToken);
             return Respond(await workflow.DecideAsync(runId, request.Approved!.Value, request.Feedback, cancellationToken));

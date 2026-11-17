@@ -1,3 +1,4 @@
+using JobFit.Api.Observability;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Http.Resilience;
 
@@ -38,5 +39,10 @@ public static class ChatClientRegistration
 
     public static ChatClientBuilder UseJobFitPipeline(this ChatClientBuilder builder) =>
         builder
+            .Use((inner, services) =>
+            {
+                var tracker = services.GetService<UsageTracker>();
+                return tracker is null ? inner : new UsageTrackingChatClient(inner, tracker);
+            })
             .UseOpenTelemetry();
 }

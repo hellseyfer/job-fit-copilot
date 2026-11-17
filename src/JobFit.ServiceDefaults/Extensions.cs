@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
@@ -24,6 +26,9 @@ public static class Extensions
 
     // Prompt-injection blocks counted by the API guardrails.
     public const string GuardrailsMeter = "JobFit.Guardrails";
+
+    // Per-run token, cost and latency metrics.
+    public const string ObservabilityMeter = "JobFit.Observability";
 
     private const string GenAiTraceSource = "Experimental.Microsoft.Extensions.AI";
 
@@ -67,7 +72,8 @@ public static class Extensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
-                    .AddMeter(GuardrailsMeter);
+                    .AddMeter(GuardrailsMeter)
+                    .AddMeter(ObservabilityMeter);
             })
             .WithTracing(tracing =>
             {
@@ -99,12 +105,25 @@ public static class Extensions
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
 
-        // Uncomment the following lines to enable the Azure Monitor exporter (requires the Azure.Monitor.OpenTelemetry.AspNetCore package)
-        //if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
-        //{
-        //    builder.Services.AddOpenTelemetry()
-        //       .UseAzureMonitor();
-        //}
+        var langfusePublicKey = builder.Configuration["Observability:Langfuse:PublicKey"];
+        var langfuseSecretKey = builder.Configuration["Observability:Langfuse:SecretKey"];
+        if (!string.IsNullOrWhiteSpace(langfusePublicKey) && !string.IsNullOrWhiteSpace(langfuseSecretKey))
+        {
+            var langfuseBase = builder.Configuration["Observability:Langfuse:Endpoint"];
+            var baseUri = string.IsNullOrWhiteSpace(langfuseBase)
+                ? "https://cloud.langfuse.com/api/public/otel"
+                : langfuseBase.TrimEnd('/');
+            var tracesUri = new Uri($"{baseUri}/v1/traces");
+            var auth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{langfusePublicKey}:{langfuseSecretKey}"));
+
+            builder.Services.AddOpenTelemetry().WithTracing(tracing =>
+                tracing.AddOtlpExporter("langfuse", options =>
+                {
+                    options.Endpoint = tracesUri;
+                    options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    options.Headers = $"Authorization=Basic {auth}";
+                }));
+        }
 
         return builder;
     }

@@ -95,6 +95,15 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         Assert.Contains("PostgreSQL", cited!["text"]!.GetValue<string>());
         Assert.Equal(1, _writerCalls);
         Assert.Equal(3, _verifierCalls);
+
+        var usage = body["usage"]!;
+        Assert.True(usage["inputTokens"]!.GetValue<long>() > 0);
+        Assert.True(usage["outputTokens"]!.GetValue<long>() > 0);
+        Assert.Equal(
+            usage["inputTokens"]!.GetValue<long>() + usage["outputTokens"]!.GetValue<long>(),
+            usage["totalTokens"]!.GetValue<long>());
+        Assert.True(usage["modelCalls"]!.GetValue<int>() >= 7);
+        Assert.True(usage["durationMs"]!.GetValue<double>() >= 0);
     }
 
     [Fact]
@@ -365,6 +374,9 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
     public async Task Reject_with_feedback_writes_and_verifies_a_new_letter()
     {
         var runId = await PausedRunAsync();
+        var paused = await GetRunAsync(runId);
+        var initialTokens = paused["usage"]!["totalTokens"]!.GetValue<long>();
+        var initialCalls = paused["usage"]!["modelCalls"]!.GetValue<int>();
         var verifierCalls = _verifierCalls;
 
         var body = await DecideAsync(
@@ -373,6 +385,8 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         Assert.Equal("awaiting-approval", body["status"]!.GetValue<string>());
         Assert.Equal(2, _writerCalls);
         Assert.True(_verifierCalls > verifierCalls);
+        Assert.True(body["usage"]!["totalTokens"]!.GetValue<long>() > initialTokens);
+        Assert.True(body["usage"]!["modelCalls"]!.GetValue<int>() > initialCalls);
         Assert.Contains("<reviewer_feedback>\nMention the PostgreSQL work first\n</reviewer_feedback>", _writerPrompts.Last());
         Assert.Contains("<rejected_letter>", _writerPrompts.Last());
         Assert.Equal(1, body["coverLetter"]!["attempts"]!.GetValue<int>());
