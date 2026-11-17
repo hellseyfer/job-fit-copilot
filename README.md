@@ -7,7 +7,7 @@ and drafts a cover letter that a human approves before it is used.
 Built as a production-minded portfolio project: spec-driven development, observability from day one,
 health probes, automated tests and evals in CI.
 
-> Status: **stage 7 — guardrails**. See the [roadmap](#roadmap).
+> Status: **stage 8 — evaluation suite**. See the [roadmap](#roadmap).
 
 ## Stack
 
@@ -166,21 +166,30 @@ dotnet test JobFit.slnx
   `IEmbeddingGenerator`); fast, no Docker, no API key.
 - `tests/JobFit.IntegrationTests` — boots the whole AppHost with a real Postgres container, and runs knowledge
   ingestion, evidence search, fit scoring and the analysis workflow against a pgvector Testcontainers database with fake models (requires Docker).
-- `tests/JobFit.Evals` — runs the extractor against a real model over a golden set of job postings and
-  reports must-have recall, checks the embedding model (768 dimensions, related text ranks closer), and
-  measures evidence recall@3, the fit judge's accuracy on a golden CV with supported and unsupported
-  requirements, how many gaps of a weak fit get a study item, the cover-letter verifier's accuracy on labeled
-  sentences, that a real letter never mentions facts absent from the CV (in-memory vector store, no database), and
-  the guardrails' recall and false-positive rate on labeled attacks and benign texts.
-  Skipped unless a model is configured:
+- `tests/JobFit.Evals` — real-model evaluation suite over golden datasets in `tests/JobFit.Evals/golden/` (in-memory
+  vector store, no database). Skipped during normal `dotnet test` unless a model is configured, or fails when
+  `JOBFIT_EVAL_REQUIRED=true` (used by the CI quality gate so it cannot pass by skipping):
 
 ```bash
 OPENAI_API_KEY=<key> dotnet test tests/JobFit.Evals --logger "console;verbosity=detailed"
-OLLAMA_ENDPOINT=http://localhost:11434 dotnet test tests/JobFit.Evals --logger "console;verbosity=detailed"
+OLLAMA_ENDPOINT=http://localhost:11434 JOBFIT_EVAL_REQUIRED=true JOBFIT_EVAL_REPORT=eval-summary.md dotnet test tests/JobFit.Evals --logger "console;verbosity=detailed"
 ```
 
 `JOBFIT_EVAL_MODEL` and `JOBFIT_EVAL_EMBEDDING_MODEL` override the models (defaults: `gpt-4o-mini` /
-`text-embedding-3-small`, `qwen2.5:3b` / `nomic-embed-text`).
+`text-embedding-3-small`, `qwen2.5:3b` / `nomic-embed-text`). When `JOBFIT_EVAL_REPORT=<path>` is set, the suite writes
+a Markdown summary table to `<path>` (used for `$GITHUB_STEP_SUMMARY` in CI) and the structured metrics to
+`<path>.json`.
+
+| Suite | Golden dataset | Metric & threshold |
+|---|---|---|
+| `RequirementExtractionEvals` | `golden/requirement-extraction.json` | Must-have recall ≥ 0.75 per posting |
+| `EmbeddingEvals` | inline | 768 dimensions; related cosine > unrelated cosine |
+| `EvidenceRetrievalEvals` | `golden/evidence-retrieval.json` | Recall@3 ≥ 0.80 on the golden CV |
+| `FitScoringEvals` | `golden/fit-scoring.json` | Judge accuracy ≥ 0.80 on supported & unsupported requirements |
+| `StudyPlanEvals` | `golden/study-plan.json` | Gap/partial coverage ≥ 0.80 |
+| `CoverLetterEvals` | `golden/cover-letter-verification.json` | Verifier accuracy ≥ 0.80; 0 facts absent from the CV (initial and revised letters) |
+| `GuardrailEvals` | `golden/guardrails.json` | Attack recall ≥ 0.80; false-positive rate ≤ 0.10 |
+| `EndToEndEvals` | `golden/end-to-end.json` | Full pipeline over CV + project: strong-fit route & grounded letter, weak-fit route & study-plan coverage ≥ 0.80, injected posting blocked |
 
 ## Repository layout
 
