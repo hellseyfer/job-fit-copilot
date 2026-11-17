@@ -87,3 +87,12 @@ model name and, when the provider reports them, the input and output token count
 #### Scenario: Extraction trace
 - **WHEN** an extraction completes
 - **THEN** a span for the model call is recorded with the model name and token usage
+
+### Requirement: Extraction quality is evaluated
+An extraction eval SHALL run against the real chat model over a golden set of job postings, each labeled with its
+expected must-have requirement keywords, and SHALL measure must-have recall: the share of expected must-have
+keywords matched in extracted `must-have` requirements.
+
+#### Scenario: Must-have recall on the golden postings
+- **WHEN** the extraction eval runs against the configured chat model on each golden job posting
+- **THEN** must-have recall is at least 0.75 for each posting
