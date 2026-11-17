@@ -22,18 +22,20 @@ public static partial class ContactDataMasker
 
     private static string MaskPhones(string text) => PhonePattern().Replace(text, match =>
     {
-        if (IsPhone(match.Value))
-            return Phone;
-        // Numbers written next to each other match as one candidate that is too long; try each part.
-        return match.Value.Count(char.IsAsciiDigit) > 15 && match.Value.Any(char.IsWhiteSpace)
-            ? WhitespacePart().Replace(match.Value, part => MaskPhones(part.Value))
-            : match.Value;
+        // A date or year range at the start is kept, and the digits after it are checked on their own.
+        var leading = LeadingDate().Match(match.Value);
+        if (leading.Success && IsDate(leading))
+            return leading.Value + MaskPhones(match.Value[leading.Length..]);
+        // Eight digits or more is a phone; several phones written together are masked as one.
+        return match.Value.Count(char.IsAsciiDigit) >= 8 ? Phone : match.Value;
     });
 
-    private static bool IsPhone(string candidate)
+    private static bool IsDate(Match leading)
     {
-        var digits = candidate.Count(char.IsAsciiDigit);
-        return digits is >= 8 and <= 15 && !IsYearRange(candidate) && !DatePattern().IsMatch(candidate);
+        if (!leading.Groups["from"].Success)
+            return true;
+        var (from, to) = (int.Parse(leading.Groups["from"].Value), int.Parse(leading.Groups["to"].Value));
+        return from >= 1000 && to <= 2099 && to >= from;
     }
 
     [GeneratedRegex(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")]
@@ -46,19 +48,7 @@ public static partial class ContactDataMasker
     [GeneratedRegex(@"(?<![\w+.])(?:\+\d{1,3}(?:[.-]|[ \t]+)?)?(?:\(\d{1,4}\)(?:[.-]|[ \t]+)?)?\d+(?:(?:[.-]|[ \t]+)\d+){0,5}(?![\w%])")]
     private static partial Regex PhonePattern();
 
-    // Two years next to each other, the second not earlier: a range such as 2020-2025 or 1850-1900.
-    private static bool IsYearRange(string candidate) => FourDigitPair().Matches(candidate).Any(pair =>
-    {
-        var (from, to) = (int.Parse(pair.Groups[1].Value), int.Parse(pair.Groups[2].Value));
-        return from >= 1000 && to <= 2099 && to >= from;
-    });
-
-    [GeneratedRegex(@"(?<!\d)(\d{4})(?:[.-]|[ \t]+)(?=(\d{4})(?!\d))")]
-    private static partial Regex FourDigitPair();
-
-    [GeneratedRegex(@"\S+")]
-    private static partial Regex WhitespacePart();
-
-    [GeneratedRegex(@"^\d{4}[-./]\d{1,2}[-./]\d{1,2}$|^\d{1,2}[-./]\d{1,2}[-./]\d{4}$")]
-    private static partial Regex DatePattern();
+    // A date (2024-01-15, 15/01/2024) or a year range, the second year not earlier (2020-2025, 1850-1900).
+    [GeneratedRegex(@"^(?:\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./]\d{1,2}[-./]\d{4}|(?<from>\d{4})(?:[.-]|[ \t]+)(?<to>\d{4}))(?!\d)")]
+    private static partial Regex LeadingDate();
 }
