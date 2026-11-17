@@ -54,8 +54,11 @@ content hash is computed on the masked content.
 ### D5. Masking with regular expressions
 - Email: RFC-like `local@domain.tld`.
 - URL: `http(s)://…` and `www.…`.
-- Phone: an optional `+`, then 8–15 digits with spaces, dots, dashes or parentheses between them. Four-digit year
-  ranges (`2020-2025`), percentages and numbers with fewer than 8 digits do not match.
+- Phone: a run of digit groups joined by spaces, a dot or a dash, with an optional `+` country code and an area code
+  in parentheses. Inside a run, whole dates (`2024-01-15`) and year ranges (`2020-2025`, at most 100 years apart) are
+  kept; every other part with 8 digits or more becomes `[phone]`. Percentages and shorter numbers are kept.
+- This is best effort: a phone written exactly like a date or a year range is not masked, and phones written
+  together become a single `[phone]`.
 Only knowledge documents are masked (proposal - Out of scope).
 
 ### D6. Telemetry without content
