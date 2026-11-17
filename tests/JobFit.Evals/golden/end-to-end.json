@@ -2,7 +2,7 @@
   "project": {
     "id": "golden-project",
     "title": "Payment Webhook Dispatcher",
-    "content": "# Payment Webhook Dispatcher\n\nContact: jane.doe@example.com · https://github.com/janedoe/webhook-dispatcher\n\n## Architecture\n\nBuilt a fault-tolerant webhook delivery service in C# with ASP.NET Core and PostgreSQL. Packaged the service with Docker and deployed it to Kubernetes with GitHub Actions CI/CD.\n"
+    "content": "# Payment Webhook Dispatcher\n\n## Architecture\n\nBuilt a fault-tolerant webhook delivery service in C# with ASP.NET Core and PostgreSQL. Packaged the service with Docker and deployed it to Kubernetes with GitHub Actions CI/CD.\n"
   },
   "absentFromKnowledge": [
     "Rust",

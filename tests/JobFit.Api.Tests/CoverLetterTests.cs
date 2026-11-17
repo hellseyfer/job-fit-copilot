@@ -120,6 +120,25 @@ public class CoverLetterGroundingTests
         Assert.Empty(aligned[6].Evidence);
     }
 
+    [Fact]
+    public void Sentences_splits_multi_sentence_blocks_without_splitting_dotnet()
+    {
+        var sentences = CoverLetterGrounding.Sentences(
+            new WrittenLetter(
+            [
+                new WrittenSentence(
+                    "I am excited to apply. I built REST APIs on .NET 8 and PostgreSQL. Thank you for considering me.",
+                    SentenceKind.Claim,
+                    [1]),
+            ]),
+            evidenceCount: 1);
+
+        Assert.Equal(3, sentences.Count);
+        Assert.Equal("I am excited to apply.", sentences[0].Text);
+        Assert.Equal("I built REST APIs on .NET 8 and PostgreSQL.", sentences[1].Text);
+        Assert.Equal("Thank you for considering me.", sentences[2].Text);
+    }
+
     private static readonly SentenceVerdict Supported = new(true, "Shown.");
 
     internal static LetterDraft Draft(int attempt, IReadOnlyList<SentenceVerdict>? verdicts) => new(
