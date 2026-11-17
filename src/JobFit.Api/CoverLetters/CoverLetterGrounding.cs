@@ -79,20 +79,18 @@ public static partial class CoverLetterGrounding
         {
             var tokens = Tokens(sentence.Text);
             var strong = MatchingNumbers(tokens, itemTokens, minimumOverlap: 2);
-            if (sentence.Kind == SentenceKind.Claim)
+            if (strong.Count > 0)
             {
-                if (sentence.Evidence.Count == 0)
-                {
-                    return sentence;
-                }
+                return new LetterSentence(sentence.Text, SentenceKind.Claim, strong);
+            }
 
-                var matched = strong.Count > 0 ? strong : MatchingNumbers(tokens, itemTokens, minimumOverlap: 1);
+            if (sentence.Kind == SentenceKind.Claim && sentence.Evidence.Count > 0)
+            {
+                var matched = MatchingNumbers(tokens, itemTokens, minimumOverlap: 1);
                 return matched.Count > 0 ? sentence with { Evidence = matched } : sentence;
             }
 
-            return strong.Count > 0
-                ? new LetterSentence(sentence.Text, SentenceKind.Claim, strong)
-                : sentence;
+            return sentence;
         }).ToList();
     }
 

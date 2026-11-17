@@ -104,7 +104,8 @@ public class CoverLetterGroundingTests
             new("At Globex I built single-page applications with React and TypeScript, and at Initech I containerized legacy services with Docker and Kubernetes and CI/CD pipelines with GitHub Actions.", SentenceKind.Claim, [5]),
             new("I hold a BSc in Computer Science from the National University of Córdoba and am fluent in English at C1 level.", SentenceKind.Claim, [5]),
             new("I am excited to leverage my expertise in PostgreSQL from my work at Acme Payments.", SentenceKind.Connective, []),
-            new("I built payment REST APIs in C#.", SentenceKind.Claim, []),
+            new("I designed and built payment REST APIs in C# with ASP.NET Core.", SentenceKind.Claim, []),
+            new("I wrote Rust in production at Google.", SentenceKind.Claim, []),
         ],
         evidence);
 
@@ -115,7 +116,8 @@ public class CoverLetterGroundingTests
         Assert.Equal([5, 6], aligned[3].Evidence);
         Assert.Equal(SentenceKind.Claim, aligned[4].Kind);
         Assert.Equal([2], aligned[4].Evidence);
-        Assert.Empty(aligned[5].Evidence);
+        Assert.Equal([2], aligned[5].Evidence);
+        Assert.Empty(aligned[6].Evidence);
     }
 
     private static readonly SentenceVerdict Supported = new(true, "Shown.");
