@@ -57,7 +57,16 @@ public sealed class GuardrailTests
     }
 
     [Theory]
+    [InlineData("Call 212-555-0123 646-555-0199.", "Call [phone] [phone].")]
+    [InlineData("Phone: +1 (212) 555-0123", "Phone: [phone]")]
+    [InlineData("Mobile 5493515551234, office 212.555.0123", "Mobile [phone], office [phone]")]
+    public void Phone_formats_are_masked(string text, string expected) => Assert.Equal(expected, ContactDataMasker.Mask(text));
+
+    [Theory]
     [InlineData("Acme (2020-2025)")]
+    [InlineData("Acme (2020-2025). 5 years of C#")]
+    [InlineData("Acme 2020-2025 5 years of C#")]
+    [InlineData("Acme (2020 - 2025), then Globex 2019-2020.")]
     [InlineData("5+ years")]
     [InlineData("99.9% uptime")]
     [InlineData("Released on 2024-01-15")]
