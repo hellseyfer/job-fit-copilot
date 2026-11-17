@@ -306,9 +306,10 @@ public sealed class AnalysisTests(PgVectorFixture database) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(_judgeCalls > 0);
         Assert.NotEmpty(logs.Messages);
-        Assert.DoesNotContain(logs.Messages, m => m.Contains(marker) || m.Contains(evidence));
+        string[] secrets = [Posting, marker, evidence];
+        Assert.DoesNotContain(logs.Messages, m => secrets.Any(m.Contains));
         Assert.NotEmpty(spans);
-        Assert.DoesNotContain(spans, s => s.Contains(marker) || s.Contains(evidence));
+        Assert.DoesNotContain(spans, s => secrets.Any(s.Contains));
     }
 
     [Fact]
