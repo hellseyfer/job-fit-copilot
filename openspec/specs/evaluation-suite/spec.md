@@ -50,10 +50,10 @@ the same entries as JSON to `<path>.json`.
 - **THEN** the Markdown file contains a table row for each recorded metric with its measured value, threshold and status, and `<path>.json` contains the corresponding JSON array
 
 ### Requirement: CI quality gate runs the evaluation suite
-The CI workflow SHALL include a quality-gate job that runs the evaluation suite against a real language and
-embedding model with `JOBFIT_EVAL_REQUIRED=true`, publishes the Markdown summary and JSON report artifact, and
-fails the workflow if any eval fails or is skipped.
+The CI configuration SHALL include a dedicated manual (`workflow_dispatch`) evaluation workflow that runs the
+evaluation suite against a real language and embedding model with `JOBFIT_EVAL_REQUIRED=true`, publishes the
+Markdown summary and JSON report artifact, and fails the workflow if any eval fails or is skipped.
 
 #### Scenario: CI quality gate execution
-- **WHEN** the CI workflow runs
-- **THEN** the evaluation quality-gate job executes `JobFit.Evals` with `JOBFIT_EVAL_REQUIRED=true` and `JOBFIT_EVAL_REPORT` set, and fails the job if any threshold is not met
+- **WHEN** the `Evals` workflow is triggered manually via `workflow_dispatch`
+- **THEN** it executes `JobFit.Evals` with `JOBFIT_EVAL_REQUIRED=true` and `JOBFIT_EVAL_REPORT` set, and fails the job if any threshold is not met

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using JobFit.Api.CoverLetters;
 using JobFit.Api.Fit;
+using JobFit.Api.Observability;
 using JobFit.Api.Requirements;
 
 namespace JobFit.Api.Analysis;
@@ -26,7 +27,8 @@ public sealed record AnalyzeJobResponse(
     AnalysisRoute Route,
     IReadOnlyList<string> Path,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CoverLetter? CoverLetter,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<StudyItem>? StudyPlan);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<StudyItem>? StudyPlan,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RunUsage? Usage = null);
 
 public sealed class WorkflowOptions
 {

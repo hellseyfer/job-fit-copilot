@@ -2,6 +2,7 @@ using System.Runtime.ExceptionServices;
 using JobFit.Api.CoverLetters;
 using JobFit.Api.Evidence;
 using JobFit.Api.Fit;
+using JobFit.Api.Observability;
 using JobFit.Api.Requirements;
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.Extensions.Options;
@@ -16,6 +17,7 @@ public sealed class JobAnalysisWorkflow(
     CoverLetterVerifier verifier,
     PostgresCheckpointStore checkpoints,
     AnalysisRunStore runs,
+    UsageTracker usageTracker,
     IOptions<WorkflowOptions> options)
 {
     public const string ExtractRequirements = "extract-requirements";
@@ -114,13 +116,16 @@ public sealed class JobAnalysisWorkflow(
     // Runs the analysis; a strong fit pauses at the review port and is returned awaiting approval.
     public async Task<AnalyzeJobResponse> StartAsync(string jobPosting, string? kind, CancellationToken cancellationToken)
     {
+        using var usageScope = usageTracker.BeginScopeIfNone();
         var input = new AnalysisInput(jobPosting, kind);
         await using var run = await InProcessExecution.RunAsync(
             Build(), input, CheckpointManager.CreateJson(checkpoints), cancellationToken: cancellationToken);
 
         var step = Collect(run.NewEvents, cancellationToken);
-        var response = ToResponse(run.SessionId, [], step);
+        var usage = usageScope.Scope.Snapshot();
+        var response = ToResponse(run.SessionId, [], step, usage);
         await runs.CreateAsync(input, response, step.Checkpoint?.CheckpointId, step.FeedbackRounds, cancellationToken);
+        UsageTracker.RecordRunCompleted(usage, response.Route.ToString(), response.Status.ToString());
         return response;
     }
 
@@ -141,6 +146,7 @@ public sealed class JobAnalysisWorkflow(
 
         try
         {
+            using var usageScope = usageTracker.BeginScopeIfNone();
             await using var run = await InProcessExecution.ResumeAsync(
                 Build(), new CheckpointInfo(runId, claimed.CheckpointId), CheckpointManager.CreateJson(checkpoints), cancellationToken);
             var request = run.NewEvents.OfType<RequestInfoEvent>().Select(e => e.Request).FirstOrDefault()
@@ -150,13 +156,16 @@ public sealed class JobAnalysisWorkflow(
 
             await run.ResumeAsync([request.CreateResponse(new ReviewDecision(pending, approved, feedback))], cancellationToken);
             var step = Collect(run.NewEvents, cancellationToken);
-            var response = ToResponse(runId, claimed.Response.Path, step);
+            var deltaUsage = usageScope.Scope.Snapshot();
+            var totalUsage = RunUsage.Combine(claimed.Response.Usage, deltaUsage);
+            var response = ToResponse(runId, claimed.Response.Path, step, totalUsage);
             if (!await runs.UpdateAsync(
                     claimed.ClaimId, response, step.Checkpoint?.CheckpointId ?? claimed.CheckpointId, step.FeedbackRounds, cancellationToken))
             {
                 throw new AnalysisRunConflictException(runId);
             }
 
+            UsageTracker.RecordRunCompleted(deltaUsage, response.Route.ToString(), response.Status.ToString());
             return response;
         }
         catch
@@ -216,7 +225,7 @@ public sealed class JobAnalysisWorkflow(
             : new Step(path, outcome, checkpoint, 0);
     }
 
-    private static AnalyzeJobResponse ToResponse(string runId, IEnumerable<string> pathSoFar, Step step)
+    private static AnalyzeJobResponse ToResponse(string runId, IEnumerable<string> pathSoFar, Step step, RunUsage usage)
     {
         var outcome = step.Outcome;
         var posting = outcome.Stage.Posting;
@@ -230,7 +239,8 @@ public sealed class JobAnalysisWorkflow(
             outcome.Route,
             [.. pathSoFar, .. step.Path],
             outcome.CoverLetter,
-            outcome.StudyPlan);
+            outcome.StudyPlan,
+            usage);
     }
 
     // Executors fail inside the workflow runtime; surface the original exception so the endpoint can map it.

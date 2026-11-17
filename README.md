@@ -7,7 +7,7 @@ and drafts a cover letter that a human approves before it is used.
 Built as a production-minded portfolio project: spec-driven development, observability from day one,
 health probes, automated tests and evals in CI.
 
-> Status: **stage 8 — evaluation suite**. See the [roadmap](#roadmap).
+> Status: **stage 9 — observability and cost**. See the [roadmap](#roadmap).
 
 ## Stack
 
@@ -62,7 +62,7 @@ dotnet run --project src/JobFit.AppHost -- --Llm:Model gpt-4.1-mini
 | `DELETE /api/knowledge/documents/{id}` | Remove a document and its chunks |
 | `POST /api/evidence/search` | Requirements (`id`, `description`) → the most similar stored chunks per requirement, with citation and cosine `score`. Optional `kind` and `top` (1–10, default 3) |
 | `POST /api/fit/score` | Requirements (`id`, `description`, `importance`) → per-requirement `met` / `partial` / `missing` judged by the LLM with cited evidence, plus a 0–100 `score`, `strengths`, `partial` and `gaps`. Optional `kind` |
-| `POST /api/analyses` | Job posting → the whole workflow graph: extraction, fit scoring and then a verified cover letter (strong fit) or a study plan (weak fit). Returns the `runId`, `status`, posting, `fit`, `route` (`strong-fit` / `weak-fit`), the executed node `path`, `coverLetter` and `studyPlan`. A strong fit returns 202 `awaiting-approval` with a `Location`; a weak fit 200 `completed`. Optional `kind` |
+| `POST /api/analyses` | Job posting → the whole workflow graph: extraction, fit scoring and then a verified cover letter (strong fit) or a study plan (weak fit). Returns the `runId`, `status`, posting, `fit`, `route` (`strong-fit` / `weak-fit`), the executed node `path`, `usage` (`inputTokens`, `outputTokens`, `totalTokens`, `costUsd`, `durationMs`, `modelCalls`), `coverLetter` and `studyPlan`. A strong fit returns 202 `awaiting-approval` with a `Location`; a weak fit 200 `completed`. Optional `kind` |
 | `GET /api/analyses/{runId}` | The run's `status` (`awaiting-approval`, `approved`, `rejected`, `completed`) and result so far; 404 if unknown |
 | `POST /api/analyses/{runId}/approval` | `{ "approved": true \| false, "feedback": "..." }` resumes the paused run: 200 `approved` / `rejected`, or 202 `awaiting-approval` with a new letter when rejected with feedback. 400 invalid body, 404 unknown run, 409 not awaiting approval |
 
@@ -155,6 +155,23 @@ Emails, phone numbers and URLs in knowledge documents are replaced with `[email]
 the content is screened, chunked, embedded or stored, so no prompt contains them. Documents ingested before this
 change keep their original chunks until they are ingested again. Prompt and completion text is never logged or
 traced (the model pipelines do not use `UseLogging`, which writes whole messages at `Trace`).
+
+### Observability, cost & Langfuse
+
+Every analysis run aggregates `inputTokens`, `outputTokens`, `totalTokens`, `costUsd`, `durationMs` and `modelCalls`
+across all chat and embedding calls (including approval revision rounds) in `usage`, and records
+`jobfit.analysis.tokens`, `jobfit.analysis.cost.usd` and `jobfit.analysis.duration.ms` on the `JobFit.Observability`
+meter. Built-in USD/1M-token rates cover `gpt-4o-mini`, `gpt-4.1-mini` and `text-embedding-3-small` (local/unknown
+models default to `0`); override or add models under `Observability:ModelPricing`.
+
+To export OpenTelemetry traces to [Langfuse](https://langfuse.com), configure:
+
+```bash
+dotnet user-secrets set Observability:Langfuse:PublicKey <pk-lf-...> --project src/JobFit.Api
+dotnet user-secrets set Observability:Langfuse:SecretKey <sk-lf-...> --project src/JobFit.Api
+# Optional for self-hosted / EU (defaults to https://cloud.langfuse.com/api/public/otel):
+dotnet user-secrets set Observability:Langfuse:Endpoint https://cloud.langfuse.com/api/public/otel --project src/JobFit.Api
+```
 
 ## Tests
 
