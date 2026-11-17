@@ -21,6 +21,7 @@ public sealed class KnowledgeApiFactory(
         builder.UseEnvironment("Production");
         builder.UseSetting("ConnectionStrings:jobfit", connectionString);
         builder.UseSetting("Llm:Provider", "openai");
+        builder.UseSetting("Guardrails:Classifier", "false");
         builder.UseSetting("ConnectionStrings:chat", "Endpoint=http://127.0.0.1:1/v1;Key=unused;Model=unused");
         builder.UseSetting("ConnectionStrings:embeddings", "Endpoint=http://127.0.0.1:1/v1;Key=unused;Model=unused");
         foreach (var (key, value) in settings ?? new Dictionary<string, string>())

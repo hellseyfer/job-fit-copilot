@@ -4,6 +4,7 @@ using JobFit.Api.Analysis;
 using JobFit.Api.CoverLetters;
 using JobFit.Api.Evidence;
 using JobFit.Api.Fit;
+using JobFit.Api.Guardrails;
 using JobFit.Api.Knowledge;
 using JobFit.Api.Llm;
 using JobFit.Api.Requirements;
@@ -21,6 +22,9 @@ builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.KebabCaseLower)));
+builder.Services.Configure<GuardrailOptions>(builder.Configuration.GetSection("Guardrails"));
+builder.Services.AddSingleton<InjectionClassifier>();
+builder.Services.AddSingleton<InputGuard>();
 builder.Services.AddSingleton<RequirementExtractor>();
 builder.Services.AddSingleton<EvidenceRetriever>();
 builder.Services.AddSingleton<FitJudge>();

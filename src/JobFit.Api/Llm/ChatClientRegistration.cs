@@ -38,6 +38,5 @@ public static class ChatClientRegistration
 
     public static ChatClientBuilder UseJobFitPipeline(this ChatClientBuilder builder) =>
         builder
-            .UseOpenTelemetry()
-            .UseLogging();
+            .UseOpenTelemetry();
 }

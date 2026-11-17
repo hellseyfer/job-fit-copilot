@@ -1,4 +1,5 @@
 using JobFit.Api.Evidence;
+using JobFit.Api.Guardrails;
 using JobFit.Api.Knowledge;
 using JobFit.Api.Requirements;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -16,6 +17,7 @@ public static class FitEndpoints
     private static async Task<Results<Ok<ScoreFitResponse>, ValidationProblem, ProblemHttpResult>> ScoreAsync(
         ScoreFitRequest request,
         FitScoringService scoring,
+        InputGuard guard,
         ILogger<FitScoringService> logger,
         CancellationToken cancellationToken)
     {
@@ -39,7 +41,18 @@ public static class FitEndpoints
             .ToList();
         try
         {
+            await guard.ScreenAsync(
+                "requirements", string.Join("\n\n", requirements.Select(r => r.Description)), cancellationToken);
             return TypedResults.Ok(await scoring.ScoreAsync(requirements, request.Kind, cancellationToken));
+        }
+        catch (PromptInjectionException exception)
+        {
+            return InputGuard.Problem(exception);
+        }
+        catch (GuardrailFailedException exception)
+        {
+            logger.LogError(exception, "The guardrail classifier failed while screening requirements");
+            return InputGuard.Problem(exception);
         }
         catch (EmbeddingFailedException exception)
         {

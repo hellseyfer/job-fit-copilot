@@ -22,6 +22,9 @@ public static class Extensions
     // Microsoft Agent Framework workflow runs and executors.
     public const string WorkflowTraceSource = "Microsoft.Agents.AI.Workflows";
 
+    // Prompt-injection blocks counted by the API guardrails.
+    public const string GuardrailsMeter = "JobFit.Guardrails";
+
     private const string GenAiTraceSource = "Experimental.Microsoft.Extensions.AI";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
@@ -63,7 +66,8 @@ public static class Extensions
             {
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter(GuardrailsMeter);
             })
             .WithTracing(tracing =>
             {

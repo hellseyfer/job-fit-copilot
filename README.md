@@ -7,7 +7,7 @@ and drafts a cover letter that a human approves before it is used.
 Built as a production-minded portfolio project: spec-driven development, observability from day one,
 health probes, automated tests and evals in CI.
 
-> Status: **stage 5 — cover letter and validation**. See the [roadmap](#roadmap).
+> Status: **stage 7 — guardrails**. See the [roadmap](#roadmap).
 
 ## Stack
 
@@ -136,6 +136,26 @@ decision returns 409. If a model call fails while resuming, the response is 502 
 approval again, so the decision can be retried. Checkpoints use Agent Framework's internal format, so a run
 paused with one package version may not resume on another. There is no authentication or cleanup of old runs.
 
+### Guardrails
+
+Every free text that reaches a prompt (the job posting, knowledge document content, requirement descriptions sent
+to fit scoring and reviewer feedback) is screened before any model or vector-store call, in two layers:
+
+1. **Patterns in code**, on normalized text (NFKC, zero-width characters removed, lower case): instruction
+   overrides ("ignore all previous instructions"), role markers (`system:`), chat template tokens (`<|im_start|>`,
+   `[INST]`) and the API's own prompt delimiters (`</evidence>`, `<reviewer_feedback>`…).
+2. **An LLM classifier** on the configured chat model, for text no pattern matched: one call per window of at most
+   2,000 characters, `rationale` before `verdict`. `Guardrails:Classifier=false` turns it off.
+
+A blocked text returns 422 (`type` `https://job-fit-copilot/problems/prompt-injection`, with `field` and `layer`,
+never the text) and increments the `jobfit.guardrails.blocked` counter with a `guardrails.blocked` span event. A
+blocked feedback leaves the run awaiting approval. A classifier failure returns 502.
+
+Emails, phone numbers and URLs in knowledge documents are replaced with `[email]`, `[phone]` and `[url]` before
+the content is screened, chunked, embedded or stored, so no prompt contains them. Documents ingested before this
+change keep their original chunks until they are ingested again. Prompt and completion text is never logged or
+traced (the model pipelines do not use `UseLogging`, which writes whole messages at `Trace`).
+
 ## Tests
 
 ```bash
@@ -150,7 +170,8 @@ dotnet test JobFit.slnx
   reports must-have recall, checks the embedding model (768 dimensions, related text ranks closer), and
   measures evidence recall@3, the fit judge's accuracy on a golden CV with supported and unsupported
   requirements, how many gaps of a weak fit get a study item, the cover-letter verifier's accuracy on labeled
-  sentences, and that a real letter never mentions facts absent from the CV (in-memory vector store, no database).
+  sentences, that a real letter never mentions facts absent from the CV (in-memory vector store, no database), and
+  the guardrails' recall and false-positive rate on labeled attacks and benign texts.
   Skipped unless a model is configured:
 
 ```bash

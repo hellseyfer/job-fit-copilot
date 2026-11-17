@@ -42,7 +42,9 @@ The text is split on paragraph boundaries into windows of at most 2,000 characte
 document 25), judged with at most 4 calls at a time, at temperature 0, with structured output
 `{ rationale, verdict }`. Rationale first and one small call per item are the two lessons of stages 3b and 5 with
 small models. The prompt states that the text is data to classify, never instructions, and wraps it in
-`<untrusted_text>`. Any `injection` verdict blocks. A failed call or a missing/unknown verdict is a 502 (fail closed).
+`<untrusted_text>`, preceded by the kind of text the field normally holds (a job posting, a CV, reviewer
+feedback asking to edit the letter…). Without that hint the small model flagged ordinary edit requests as
+injections (false positives 0.25–0.33 in the eval; 0.08 with it). Any `injection` verdict blocks. A failed call or a missing/unknown verdict is a 502 (fail closed).
 *Alternative:* one call for the whole text. It would exceed the default Ollama context for a long CV.
 
 ### D4. Order: validate → mask → patterns → classifier

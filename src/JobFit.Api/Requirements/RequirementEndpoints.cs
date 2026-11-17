@@ -1,3 +1,4 @@
+using JobFit.Api.Guardrails;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace JobFit.Api.Requirements;
@@ -17,6 +18,7 @@ public static class RequirementEndpoints
     private static async Task<Results<Ok<ExtractRequirementsResponse>, ValidationProblem, ProblemHttpResult>> ExtractAsync(
         ExtractRequirementsRequest request,
         RequirementExtractor extractor,
+        InputGuard guard,
         ILogger<RequirementExtractor> logger,
         CancellationToken cancellationToken)
     {
@@ -32,7 +34,17 @@ public static class RequirementEndpoints
 
         try
         {
+            await guard.ScreenAsync("jobPosting", request.JobPosting, cancellationToken);
             return TypedResults.Ok(await extractor.ExtractAsync(request.JobPosting, cancellationToken));
+        }
+        catch (PromptInjectionException exception)
+        {
+            return InputGuard.Problem(exception);
+        }
+        catch (GuardrailFailedException exception)
+        {
+            logger.LogError(exception, "The guardrail classifier failed while screening a job posting");
+            return InputGuard.Problem(exception);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {

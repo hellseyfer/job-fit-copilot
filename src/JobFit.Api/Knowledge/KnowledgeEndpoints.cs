@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using JobFit.Api.Guardrails;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace JobFit.Api.Knowledge;
@@ -21,6 +22,7 @@ public static partial class KnowledgeEndpoints
         string id,
         PutKnowledgeDocumentRequest request,
         KnowledgeIngestionService ingestion,
+        InputGuard guard,
         ILogger<KnowledgeIngestionService> logger,
         CancellationToken cancellationToken)
     {
@@ -30,12 +32,24 @@ public static partial class KnowledgeEndpoints
             return TypedResults.ValidationProblem(errors);
         }
 
+        // The content is masked first, so neither the classifier nor the embedding model sees contact data.
+        var content = ContactDataMasker.Mask(request.Content!);
         try
         {
-            var result = await ingestion.IngestAsync(id, request.Kind!, request.Title!, request.Content!, cancellationToken);
+            await guard.ScreenAsync("content", content, cancellationToken);
+            var result = await ingestion.IngestAsync(id, request.Kind!, request.Title!, content, cancellationToken);
             return result.Created
                 ? TypedResults.Created($"/api/knowledge/documents/{id}/chunks", result.Document)
                 : TypedResults.Ok(result.Document);
+        }
+        catch (PromptInjectionException exception)
+        {
+            return InputGuard.Problem(exception);
+        }
+        catch (GuardrailFailedException exception)
+        {
+            logger.LogError(exception, "The guardrail classifier failed while screening knowledge document {DocumentId}", id);
+            return InputGuard.Problem(exception);
         }
         catch (EmbeddingFailedException exception)
         {
