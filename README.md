@@ -168,7 +168,7 @@ dotnet test JobFit.slnx
   ingestion, evidence search, fit scoring and the analysis workflow against a pgvector Testcontainers database with fake models (requires Docker).
 - `tests/JobFit.Evals` — real-model evaluation suite over golden datasets in `tests/JobFit.Evals/golden/` (in-memory
   vector store, no database). Skipped during normal `dotnet test` unless a model is configured, or fails when
-  `JOBFIT_EVAL_REQUIRED=true` (used by the CI quality gate so it cannot pass by skipping):
+  `JOBFIT_EVAL_REQUIRED=true` (used by the manual `Evals` GitHub Actions workflow so it cannot pass by skipping):
 
 ```bash
 OPENAI_API_KEY=<key> dotnet test tests/JobFit.Evals --logger "console;verbosity=detailed"

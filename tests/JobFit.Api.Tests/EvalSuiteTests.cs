@@ -94,13 +94,15 @@ public class EvalSuiteTests
     }
 
     [Fact]
-    public void Ci_workflow_defines_the_evals_quality_gate_job()
+    public void Evals_workflow_defines_the_manual_evals_quality_gate_job()
     {
         var path = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".github", "workflows", "ci.yml"));
-        Assert.True(File.Exists(path), $"Expected CI workflow at {path}");
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".github", "workflows", "evals.yml"));
+        Assert.True(File.Exists(path), $"Expected Evals workflow at {path}");
 
         var yaml = File.ReadAllText(path);
+        Assert.Contains("workflow_dispatch:", yaml);
+        Assert.DoesNotContain("pull_request:", yaml);
         Assert.Contains("evals:", yaml);
         Assert.Contains("dotnet test tests/JobFit.Evals", yaml);
         Assert.Contains("JOBFIT_EVAL_REQUIRED: \"true\"", yaml);
