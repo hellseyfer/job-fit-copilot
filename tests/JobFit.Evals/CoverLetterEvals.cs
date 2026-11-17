@@ -13,7 +13,8 @@ using Xunit.Abstractions;
 namespace JobFit.Evals;
 
 // Measures the cover-letter verifier on labeled sentences and checks a real letter for invented facts.
-// Skipped unless OPENAI_API_KEY or OLLAMA_ENDPOINT is set.
+// Skipped unless OPENAI_API_KEY or OLLAMA_ENDPOINT is set (or fails when JOBFIT_EVAL_REQUIRED=true).
+[Collection("Evals")]
 public class CoverLetterEvals(ITestOutputHelper output)
 {
     private const double MinimumAccuracy = 0.8;
@@ -24,8 +25,8 @@ public class CoverLetterEvals(ITestOutputHelper output)
     [SkippableFact]
     public async Task Verifier_accuracy_on_labeled_sentences_meets_the_target()
     {
-        using var chatClient = RequirementExtractionEvals.CreateChatClient();
-        Skip.If(chatClient is null, "Set OPENAI_API_KEY or OLLAMA_ENDPOINT to run the evals.");
+        using var chatClient = EvalHarness.RequireChatClient();
+        var model = EvalHarness.ChatModelName();
 
         var golden = Load<GoldenVerification>("cover-letter-verification.json");
         var draft = new LetterDraft(
@@ -48,31 +49,34 @@ public class CoverLetterEvals(ITestOutputHelper output)
 
         var accuracy = (double)correct / golden.Sentences.Count;
         output.WriteLine($"accuracy={accuracy:F2}");
-        Assert.True(accuracy >= MinimumAccuracy, $"accuracy {accuracy:F2} is below {MinimumAccuracy}");
+
+        var passed = accuracy >= MinimumAccuracy;
+        EvalReport.Record("cover-letter", "verifier accuracy", model, accuracy, $">= {MinimumAccuracy:F2}", passed);
+        Assert.True(passed, $"accuracy {accuracy:F2} is below {MinimumAccuracy}");
     }
 
     [SkippableFact]
     public async Task Letter_for_a_strong_fit_has_no_facts_absent_from_the_cv()
     {
-        using var generator = EmbeddingEvals.CreateEmbeddingGenerator();
-        using var chatClient = RequirementExtractionEvals.CreateChatClient();
-        Skip.If(generator is null || chatClient is null, "Set OPENAI_API_KEY or OLLAMA_ENDPOINT to run the evals.");
+        using var generator = EvalHarness.RequireEmbeddingGenerator();
+        using var chatClient = EvalHarness.RequireChatClient();
+        var model = EvalHarness.ChatModelName();
 
         var writer = new CoverLetterWriter(chatClient);
         var verifier = new CoverLetterVerifier(chatClient);
         var stage = await StrongFitAsync(generator, chatClient);
         var letter = await VerifiedAsync(verifier, await writer.WriteAsync(stage, CancellationToken.None), writer);
 
-        AssertGrounded(letter, minimumSentences: 3);
+        AssertGrounded(letter, minimumSentences: 3, metric: "strong-fit invented facts", model);
     }
 
     // Reviewer feedback is untrusted: a rejection asking for facts the CV lacks must not put them in the letter.
     [SkippableFact]
     public async Task Letter_revised_with_feedback_asking_for_absent_facts_still_has_none()
     {
-        using var generator = EmbeddingEvals.CreateEmbeddingGenerator();
-        using var chatClient = RequirementExtractionEvals.CreateChatClient();
-        Skip.If(generator is null || chatClient is null, "Set OPENAI_API_KEY or OLLAMA_ENDPOINT to run the evals.");
+        using var generator = EvalHarness.RequireEmbeddingGenerator();
+        using var chatClient = EvalHarness.RequireChatClient();
+        var model = EvalHarness.ChatModelName();
 
         var writer = new CoverLetterWriter(chatClient);
         var verifier = new CoverLetterVerifier(chatClient);
@@ -88,7 +92,7 @@ public class CoverLetterEvals(ITestOutputHelper output)
         var letter = await VerifiedAsync(verifier, revised, writer);
 
         Assert.Equal(1, revised.FeedbackRounds);
-        AssertGrounded(letter, minimumSentences: 2);
+        AssertGrounded(letter, minimumSentences: 2, metric: "revised-letter invented facts", model);
     }
 
     private static async Task<FitStage> StrongFitAsync(
@@ -128,9 +132,12 @@ public class CoverLetterEvals(ITestOutputHelper output)
         return letter;
     }
 
-    private static void AssertGrounded(CoverLetter letter, int minimumSentences)
+    private static void AssertGrounded(CoverLetter letter, int minimumSentences, string metric, string model)
     {
         var invented = AbsentFromCv.Where(term => Regex.IsMatch(letter.Text, $@"\b{term}\b", RegexOptions.IgnoreCase)).ToList();
+        var passed = letter.Sentences.Count >= minimumSentences && invented.Count == 0;
+        EvalReport.Record("cover-letter", metric, model, invented.Count, "== 0.00", passed);
+
         Assert.True(letter.Sentences.Count >= minimumSentences, $"the letter has only {letter.Sentences.Count} sentences");
         Assert.True(invented.Count == 0, $"the letter mentions {string.Join(", ", invented)}");
     }

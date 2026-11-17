@@ -1,21 +1,19 @@
-using System.ClientModel;
 using System.Numerics.Tensors;
 using JobFit.Api.Knowledge;
 using Microsoft.Extensions.AI;
-using OllamaSharp;
-using OpenAI;
 using Xunit.Abstractions;
 
 namespace JobFit.Evals;
 
-// Checks the real embedding model. Skipped unless OPENAI_API_KEY or OLLAMA_ENDPOINT is set.
+// Checks the real embedding model. Skipped unless OPENAI_API_KEY or OLLAMA_ENDPOINT is set (or fails when JOBFIT_EVAL_REQUIRED=true).
+[Collection("Evals")]
 public class EmbeddingEvals(ITestOutputHelper output)
 {
     [SkippableFact]
     public async Task Embeddings_have_the_store_dimensions_and_rank_related_text_closer()
     {
-        using var generator = CreateEmbeddingGenerator();
-        Skip.If(generator is null, "Set OPENAI_API_KEY or OLLAMA_ENDPOINT to run the evals.");
+        using var generator = EvalHarness.RequireEmbeddingGenerator();
+        var model = EvalHarness.EmbeddingModelName();
 
         var embeddings = await generator.GenerateAsync(
         [
@@ -28,32 +26,14 @@ public class EmbeddingEvals(ITestOutputHelper output)
         Assert.All(embeddings, e => Assert.Equal(KnowledgeChunkRecord.Dimensions, e.Vector.Length));
         var related = TensorPrimitives.CosineSimilarity(embeddings[0].Vector.Span, embeddings[1].Vector.Span);
         var unrelated = TensorPrimitives.CosineSimilarity(embeddings[0].Vector.Span, embeddings[2].Vector.Span);
+        var margin = (double)(related - unrelated);
         output.WriteLine($"related={related:F3} unrelated={unrelated:F3}");
-        Assert.True(related > unrelated);
+
+        var passed = related > unrelated;
+        EvalReport.Record("embeddings", "related minus unrelated cosine", model, margin, "> 0.00", passed);
+        Assert.True(passed);
     }
 
-    internal static IEmbeddingGenerator<string, Embedding<float>>? CreateEmbeddingGenerator()
-    {
-        var model = Environment.GetEnvironmentVariable("JOBFIT_EVAL_EMBEDDING_MODEL");
-
-        var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        if (!string.IsNullOrEmpty(openAiKey))
-        {
-            return new OpenAIClient(new ApiKeyCredential(openAiKey))
-                .GetEmbeddingClient(string.IsNullOrEmpty(model) ? "text-embedding-3-small" : model)
-                .AsIEmbeddingGenerator()
-                .AsBuilder()
-                // Same as the API: text-embedding-3 models shorten their vectors to the store's fixed size.
-                .ConfigureOptions(options => options.Dimensions ??= KnowledgeChunkRecord.Dimensions)
-                .Build();
-        }
-
-        var ollamaEndpoint = Environment.GetEnvironmentVariable("OLLAMA_ENDPOINT");
-        if (!string.IsNullOrEmpty(ollamaEndpoint))
-        {
-            return new OllamaApiClient(new Uri(ollamaEndpoint), string.IsNullOrEmpty(model) ? "nomic-embed-text" : model);
-        }
-
-        return null;
-    }
+    internal static IEmbeddingGenerator<string, Embedding<float>>? CreateEmbeddingGenerator() =>
+        EvalHarness.CreateEmbeddingGenerator();
 }

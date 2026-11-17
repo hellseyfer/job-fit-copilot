@@ -1,14 +1,15 @@
 using System.Text.Json;
+using CommunityToolkit.VectorData.InMemory;
 using JobFit.Api.Evidence;
 using JobFit.Api.Knowledge;
 using Microsoft.Extensions.Logging.Abstractions;
-using CommunityToolkit.VectorData.InMemory;
 using Xunit.Abstractions;
 
 namespace JobFit.Evals;
 
 // Measures recall@3 of evidence retrieval with the real embedding model on an in-memory vector store.
-// Skipped unless OPENAI_API_KEY or OLLAMA_ENDPOINT is set.
+// Skipped unless OPENAI_API_KEY or OLLAMA_ENDPOINT is set (or fails when JOBFIT_EVAL_REQUIRED=true).
+[Collection("Evals")]
 public class EvidenceRetrievalEvals(ITestOutputHelper output)
 {
     private const int Top = 3;
@@ -17,8 +18,7 @@ public class EvidenceRetrievalEvals(ITestOutputHelper output)
     [SkippableFact]
     public async Task Recall_at_3_on_the_golden_cv_meets_the_target()
     {
-        using var generator = EmbeddingEvals.CreateEmbeddingGenerator();
-        Skip.If(generator is null, "Set OPENAI_API_KEY or OLLAMA_ENDPOINT to run the evals.");
+        using var generator = EvalHarness.RequireEmbeddingGenerator();
 
         var golden = JsonSerializer.Deserialize<GoldenCv>(
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "golden", "evidence-retrieval.json")),
@@ -45,7 +45,10 @@ public class EvidenceRetrievalEvals(ITestOutputHelper output)
 
         var recall = (double)hits / golden.Requirements.Count;
         output.WriteLine($"model={response.EmbeddingModel} recall@{Top}={recall:F2}");
-        Assert.True(recall >= MinimumRecall, $"recall@{Top} {recall:F2} is below {MinimumRecall}");
+
+        var passed = recall >= MinimumRecall;
+        EvalReport.Record("evidence-retrieval", $"recall@{Top}", response.EmbeddingModel, recall, $">= {MinimumRecall:F2}", passed);
+        Assert.True(passed, $"recall@{Top} {recall:F2} is below {MinimumRecall}");
     }
 
     private sealed record GoldenCv(string Title, string Cv, IReadOnlyList<GoldenRequirement> Requirements);

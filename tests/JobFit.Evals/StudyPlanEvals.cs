@@ -11,7 +11,8 @@ using Xunit.Abstractions;
 namespace JobFit.Evals;
 
 // Measures how many gap and partial requirements get a study item, with real chat and embedding models.
-// Skipped unless OPENAI_API_KEY or OLLAMA_ENDPOINT is set.
+// Skipped unless OPENAI_API_KEY or OLLAMA_ENDPOINT is set (or fails when JOBFIT_EVAL_REQUIRED=true).
+[Collection("Evals")]
 public class StudyPlanEvals(ITestOutputHelper output)
 {
     private const double MinimumCoverage = 0.8;
@@ -19,9 +20,8 @@ public class StudyPlanEvals(ITestOutputHelper output)
     [SkippableFact]
     public async Task Study_plan_covers_the_gaps_of_a_weak_fit()
     {
-        using var generator = EmbeddingEvals.CreateEmbeddingGenerator();
-        using var chatClient = RequirementExtractionEvals.CreateChatClient();
-        Skip.If(generator is null || chatClient is null, "Set OPENAI_API_KEY or OLLAMA_ENDPOINT to run the evals.");
+        using var generator = EvalHarness.RequireEmbeddingGenerator();
+        using var chatClient = EvalHarness.RequireChatClient();
 
         var cv = Load<GoldenCv>("evidence-retrieval.json");
         var golden = Load<GoldenPosting>("study-plan.json");
@@ -53,7 +53,10 @@ public class StudyPlanEvals(ITestOutputHelper output)
         Assert.True(gaps.Count > 0, "The golden posting should leave gaps.");
         var coverage = (double)gaps.Count(g => planned.Contains(g.RequirementId)) / gaps.Count;
         output.WriteLine($"chat={fit.ChatModel} score={fit.Score} gaps={gaps.Count} coverage={coverage:F2}");
-        Assert.True(coverage >= MinimumCoverage, $"coverage {coverage:F2} is below {MinimumCoverage}");
+
+        var passed = coverage >= MinimumCoverage;
+        EvalReport.Record("study-plan", "gap coverage", fit.ChatModel, coverage, $">= {MinimumCoverage:F2}", passed);
+        Assert.True(passed, $"coverage {coverage:F2} is below {MinimumCoverage}");
     }
 
     private static T Load<T>(string file) => JsonSerializer.Deserialize<T>(
