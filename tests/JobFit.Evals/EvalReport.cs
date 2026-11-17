@@ -68,9 +68,11 @@ internal static class EvalReport
             var valueText = entry.Value.ToString("0.00", CultureInfo.InvariantCulture);
             var status = entry.Passed ? "PASS" : "FAIL";
             builder.AppendLine(
-                $"| {entry.Suite} | {entry.Metric} | {entry.Model} | {valueText} | {entry.Threshold} | {status} |");
+                $"| {Escape(entry.Suite)} | {Escape(entry.Metric)} | {Escape(entry.Model)} | {valueText} | {Escape(entry.Threshold)} | {status} |");
         }
 
         return builder.ToString();
     }
+
+    private static string Escape(string value) => value.Replace("|", "\\|", StringComparison.Ordinal);
 }

@@ -62,6 +62,11 @@ jobs:
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           sudo systemctl stop ollama || true
+          sudo systemctl disable ollama || true
+          for i in $(seq 1 15); do
+            ss -tln | grep -q ':11434 ' || break
+            sleep 1
+          done
           RUNNER_TRACKING_ID="" nohup ollama serve >/tmp/ollama.log 2>&1 &
           for i in $(seq 1 30); do
             ollama list >/dev/null 2>&1 && break
@@ -72,6 +77,8 @@ jobs:
           ollama pull nomic-embed-text
         env:
           OLLAMA_MODELS: /home/runner/.ollama/models
+          OLLAMA_MAX_LOADED_MODELS: "2"
+          OLLAMA_KEEP_ALIVE: "30m"
 
       - name: Run evaluation quality gate
         run: |
