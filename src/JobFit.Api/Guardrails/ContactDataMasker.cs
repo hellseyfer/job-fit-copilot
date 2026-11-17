@@ -25,7 +25,7 @@ public static partial class ContactDataMasker
         if (IsPhone(match.Value))
             return Phone;
         // Numbers written next to each other match as one candidate that is too long; try each part.
-        return match.Value.Count(char.IsAsciiDigit) > 15 && match.Value.Contains(' ')
+        return match.Value.Count(char.IsAsciiDigit) > 15 && match.Value.Any(char.IsWhiteSpace)
             ? WhitespacePart().Replace(match.Value, part => MaskPhones(part.Value))
             : match.Value;
     });
@@ -33,7 +33,7 @@ public static partial class ContactDataMasker
     private static bool IsPhone(string candidate)
     {
         var digits = candidate.Count(char.IsAsciiDigit);
-        return digits is >= 8 and <= 15 && !YearRangePattern().IsMatch(candidate) && !DatePattern().IsMatch(candidate);
+        return digits is >= 8 and <= 15 && !IsYearRange(candidate) && !DatePattern().IsMatch(candidate);
     }
 
     [GeneratedRegex(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")]
@@ -42,13 +42,19 @@ public static partial class ContactDataMasker
     [GeneratedRegex(@"\b(?:https?://|www\.)[^\s<>()\[\]""']+", RegexOptions.IgnoreCase)]
     private static partial Regex UrlPattern();
 
-    // Digit groups joined by single separators, with an optional country code and area code in parentheses.
-    [GeneratedRegex(@"(?<![\w+.])(?:\+\d{1,3}[ .-]?)?(?:\(\d{1,4}\)[ .-]?)?\d+(?:[ .-]\d+){0,5}(?![\w%])")]
+    // Digit groups joined by a dot, a hyphen or spaces, with an optional country code and area code in parentheses.
+    [GeneratedRegex(@"(?<![\w+.])(?:\+\d{1,3}(?:[.-]|[ \t]+)?)?(?:\(\d{1,4}\)(?:[.-]|[ \t]+)?)?\d+(?:(?:[.-]|[ \t]+)\d+){0,5}(?![\w%])")]
     private static partial Regex PhonePattern();
 
-    // Two years next to each other: a range such as 2020-2025, possibly followed by a duration.
-    [GeneratedRegex(@"(?<!\d)(?:19|20)\d\d[ .-](?:19|20)\d\d(?!\d)")]
-    private static partial Regex YearRangePattern();
+    // Two years next to each other, the second not earlier: a range such as 2020-2025 or 1850-1900.
+    private static bool IsYearRange(string candidate) => FourDigitPair().Matches(candidate).Any(pair =>
+    {
+        var (from, to) = (int.Parse(pair.Groups[1].Value), int.Parse(pair.Groups[2].Value));
+        return from >= 1000 && to <= 2099 && to >= from;
+    });
+
+    [GeneratedRegex(@"(?<!\d)(\d{4})(?:[.-]|[ \t]+)(?=(\d{4})(?!\d))")]
+    private static partial Regex FourDigitPair();
 
     [GeneratedRegex(@"\S+")]
     private static partial Regex WhitespacePart();
