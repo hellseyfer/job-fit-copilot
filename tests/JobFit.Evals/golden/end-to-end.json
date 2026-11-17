@@ -29,12 +29,12 @@
     {
       "name": "weak-fit-rust-salesforce",
       "expectedOutcome": "weak-fit",
-      "jobPosting": "Staff Systems & CRM Engineer\n\nWe are looking for an engineer to maintain our low-level trading engine and CRM integrations.\n\nRequirements:\n- Production experience with Rust.\n- Salesforce administration and Apex development.\n- Fluent German.\n- Experience optimizing PostgreSQL performance.\n\nNice to have:\n- PhD in Machine Learning.\n- Building mobile apps with Swift for iOS.",
+      "jobPosting": "Staff Systems & CRM Engineer\n\nWe are looking for an engineer to maintain our low-level trading engine and CRM integrations.\n\nRequirements:\n- Production experience with Rust.\n- Salesforce administration and Apex development.\n- Fluent German.\n- Building mobile apps with Swift for iOS.\n\nNice to have:\n- PhD in Machine Learning.\n- Experience optimizing PostgreSQL performance.",
       "mustHave": [
         "Rust",
         "Salesforce",
         "German",
-        "PostgreSQL"
+        "Swift"
       ]
     },
     {

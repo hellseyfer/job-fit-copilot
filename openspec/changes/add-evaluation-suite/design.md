@@ -76,4 +76,11 @@ stdout when a test logs it, not structured metrics and thresholds.
   `timeout-minutes: 30` bounds the job.
 - [Small-model variance near thresholds] → Prompts use temperature 0 and the thresholds (0.75 extraction recall,
   0.80 retrieval/judge/planner/verifier/guardrail recall, ≤ 0.10 guardrail false positives, 0 invented facts) are
-  already validated against `qwen2.5:3b`.
+  validated against `qwen2.5:3b`. Running the full suite in CI surfaced two `qwen2.5:3b` failure modes:
+  1. `CoverLetterWriter` generated `text` before `kind` and `evidence`, combined multiple CV chunks into one sentence,
+     and numbered `evidence` by sentence index rather than `<evidence n="...">`, causing `CoverLetterVerifier` to
+     check sentences against the wrong CV chunk. Ordering `WrittenSentence` as `(kind, evidence, text)` in JSON and
+     aligning cited claims with the evidence items whose distinctive terms they mention (`CoverLetterGrounding.AlignEvidence`)
+     resolves citation index drift while keeping uncited claims and invented facts rejected.
+  2. `StudyPlanner` skipped `partial` / `nice-to-have` gaps or renumbered non-contiguous gap IDs; explicit prompt
+     instructions keep every `<requirement>` tag with its verbatim `id`.

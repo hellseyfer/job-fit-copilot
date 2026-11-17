@@ -84,6 +84,40 @@ public class CoverLetterGroundingTests
         Assert.Equal(due, draft.RewriteDue);
     }
 
+    [Fact]
+    public void AlignEvidence_corrects_misnumbered_and_compound_citations_and_preserves_uncited_claims()
+    {
+        EvidenceItem[] evidence =
+        [
+            new("cv", "cv", "CV", "Jane Doe", 0, "Senior backend engineer based in Córdoba, Argentina.", 0.9),
+            new("cv", "cv", "CV", "Experience > Acme Payments (2020-2025)", 1, "Designed and built payment REST APIs in C# with ASP.NET Core on .NET 8. Tuned PostgreSQL queries and indexes.", 0.9),
+            new("cv", "cv", "CV", "Experience > Globex (2017-2020)", 2, "Built customer-facing single-page applications with React and TypeScript.", 0.9),
+            new("cv", "cv", "CV", "Experience > Initech (2015-2017)", 3, "Containerized legacy services with Docker and moved them to Kubernetes on AWS, setting up CI/CD pipelines with GitHub Actions.", 0.9),
+            new("cv", "cv", "CV", "Education", 4, "BSc in Computer Science, National University of Córdoba, 2015.", 0.9),
+            new("cv", "cv", "CV", "Languages", 5, "Spanish (native), English (fluent, C1).", 0.9),
+        ];
+
+        var aligned = CoverLetterGrounding.AlignEvidence(
+        [
+            new("I am excited about the opportunity to contribute to your team.", SentenceKind.Connective, []),
+            new("At Acme Payments I designed and built payment REST APIs in C# with ASP.NET Core on .NET 8 and tuned PostgreSQL.", SentenceKind.Claim, [3]),
+            new("At Globex I built single-page applications with React and TypeScript, and at Initech I containerized legacy services with Docker and Kubernetes and CI/CD pipelines with GitHub Actions.", SentenceKind.Claim, [5]),
+            new("I hold a BSc in Computer Science from the National University of Córdoba and am fluent in English at C1 level.", SentenceKind.Claim, [5]),
+            new("I am excited to leverage my expertise in PostgreSQL from my work at Acme Payments.", SentenceKind.Connective, []),
+            new("I built payment REST APIs in C#.", SentenceKind.Claim, []),
+        ],
+        evidence);
+
+        Assert.Equal(SentenceKind.Connective, aligned[0].Kind);
+        Assert.Empty(aligned[0].Evidence);
+        Assert.Equal([2], aligned[1].Evidence);
+        Assert.Equal([3, 4], aligned[2].Evidence);
+        Assert.Equal([5, 6], aligned[3].Evidence);
+        Assert.Equal(SentenceKind.Claim, aligned[4].Kind);
+        Assert.Equal([2], aligned[4].Evidence);
+        Assert.Empty(aligned[5].Evidence);
+    }
+
     private static readonly SentenceVerdict Supported = new(true, "Shown.");
 
     internal static LetterDraft Draft(int attempt, IReadOnlyList<SentenceVerdict>? verdicts) => new(

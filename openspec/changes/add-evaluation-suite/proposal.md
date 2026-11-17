@@ -25,6 +25,9 @@ and cannot block a prompt or model regression.
   any metric misses its threshold.
 - Record the requirement-extraction eval threshold in the `requirement-extraction` specification so every AI
   capability in `openspec/specs/` defines its quality bar.
+- Harden `CoverLetterWriter` / `CoverLetterGrounding` (schema field order and citation alignment for multi-chunk or
+  misnumbered sentences) and `StudyPlanner` (prompt instructions for partial/nice-to-have gaps and non-contiguous
+  IDs) for small local models (`qwen2.5:3b`) surfaced by the CI quality gate.
 
 ## Capabilities
 

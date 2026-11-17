@@ -139,6 +139,12 @@ public class EndToEndEvals(ITestOutputHelper output)
 
         var gaps = fit.Assessments.Where(a => a.Status != FitStatus.Met).ToList();
         var planned = plan.Select(i => i.RequirementId).ToHashSet();
+        foreach (var gap in gaps)
+        {
+            var item = plan.FirstOrDefault(i => i.RequirementId == gap.RequirementId);
+            output.WriteLine($"{(item is null ? "FAIL" : "OK  ")} {gap.RequirementId} {gap.Status,-8} {gap.Description}");
+        }
+
         var coverage = gaps.Count == 0 ? 0 : (double)gaps.Count(g => planned.Contains(g.RequirementId)) / gaps.Count;
 
         output.WriteLine($"{posting.Name}: mustHaveRecall={mustHaveRecall:F2} score={fit.Score} route={route} gaps={gaps.Count} coverage={coverage:F2}");

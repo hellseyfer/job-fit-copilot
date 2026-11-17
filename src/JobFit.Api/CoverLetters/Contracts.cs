@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using JobFit.Api.Analysis;
 using JobFit.Api.Evidence;
 
@@ -35,7 +36,11 @@ public sealed record LetterDraft(
 
 public sealed record WrittenLetter(IReadOnlyList<WrittenSentence?>? Sentences);
 
-public sealed record WrittenSentence(string? Text, SentenceKind? Kind, IReadOnlyList<int>? Evidence);
+// Kind and evidence come before text in the schema so the model picks the evidence item before writing the sentence.
+public sealed record WrittenSentence(
+    [property: JsonPropertyOrder(3)] string? Text,
+    [property: JsonPropertyOrder(1)] SentenceKind? Kind,
+    [property: JsonPropertyOrder(2)] IReadOnlyList<int>? Evidence);
 
 public enum Verdict { Supported, Unsupported }
 
