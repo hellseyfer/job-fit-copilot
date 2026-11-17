@@ -19,6 +19,7 @@ public class ObservabilityTests
     {
         var defaultCost = CostCalculator.Calculate("gpt-4o-mini", inputTokens: 1_000_000, outputTokens: 500_000);
         Assert.Equal(0.45, defaultCost);
+        Assert.Equal(0.45, CostCalculator.Calculate("gpt-4o-mini-2024-07-18", 1_000_000, 500_000));
 
         var options = new ObservabilityOptions
         {

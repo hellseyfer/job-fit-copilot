@@ -52,6 +52,19 @@ dotnet run --project src/JobFit.AppHost -- --Llm:Provider ollama
 dotnet run --project src/JobFit.AppHost -- --Llm:Model gpt-4.1-mini
 ```
 
+### Demo UI (Angular)
+
+To run the Angular demo UI against the running API (pass the API's HTTP URL from the Aspire dashboard in `API_URL`):
+
+```bash
+cd src/JobFit.Web
+npm install
+API_URL=http://127.0.0.1:12283 npm start
+```
+
+Open `http://localhost:4200` to ingest CVs/projects, run analyses, inspect cited evidence and token/cost `usage`, and
+approve or revise cover letters.
+
 | Endpoint | Purpose |
 |---|---|
 | `GET /alive` | Liveness: the process is running (200 even if the database is down) |

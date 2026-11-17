@@ -21,6 +21,9 @@ builder.AddKnowledgeIngestion();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+builder.Services.AddCors(options =>
+    options.AddPolicy("DemoUi", policy =>
+        policy.WithOrigins("http://localhost:4200").AllowAnyHeader().AllowAnyMethod()));
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.KebabCaseLower)));
 builder.Services.Configure<GuardrailOptions>(builder.Configuration.GetSection("Guardrails"));
@@ -45,6 +48,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseCors("DemoUi");
 }
 
 app.MapDefaultEndpoints();
