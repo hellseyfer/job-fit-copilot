@@ -22,11 +22,13 @@ public class DeploymentTests
         var dockerfile = File.ReadAllText(Path.Combine(RepoRoot, "src", "JobFit.Web", "Dockerfile"));
         Assert.Contains("FROM node:22-alpine AS build", dockerfile);
         Assert.Contains("FROM nginx:alpine AS runtime", dockerfile);
+        Assert.Contains("API_ORIGIN=http://api:8080", dockerfile);
+        Assert.Contains("/etc/nginx/templates/default.conf.template", dockerfile);
         Assert.Contains("dist/job-fit-web/browser", dockerfile);
 
         var nginx = File.ReadAllText(Path.Combine(RepoRoot, "src", "JobFit.Web", "nginx.conf"));
         Assert.Contains("location /api/", nginx);
-        Assert.Contains("proxy_pass http://api:8080;", nginx);
+        Assert.Contains("proxy_pass ${API_ORIGIN};", nginx);
         Assert.Contains("location = /health", nginx);
         Assert.Contains("location = /alive", nginx);
     }
@@ -49,5 +51,20 @@ public class DeploymentTests
         Assert.Contains("container-build:", ci);
         Assert.Contains("docker build -f src/JobFit.Api/Dockerfile", ci);
         Assert.Contains("docker build -f src/JobFit.Web/Dockerfile", ci);
+    }
+
+    [Fact]
+    public void Ghcr_publish_workflow_and_azure_deploy_script_are_configured()
+    {
+        var publish = File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", "publish-images.yml"));
+        Assert.Contains("ghcr.io", publish);
+        Assert.Contains("job-fit-copilot-api", publish);
+        Assert.Contains("job-fit-copilot-web", publish);
+
+        var script = File.ReadAllText(Path.Combine(RepoRoot, "deploy", "azure", "deploy.sh"));
+        Assert.Contains("NEON_CONNECTION_STRING", script);
+        Assert.Contains("OPENAI_API_KEY", script);
+        Assert.Contains("--min-replicas 0 --max-replicas 1", script);
+        Assert.Contains("API_ORIGIN", script);
     }
 }

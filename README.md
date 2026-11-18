@@ -75,6 +75,18 @@ cp .env.example .env
 docker compose up --build
 ```
 
+### Azure Container Apps + Neon (`$0`/month portfolio setup)
+
+1. Push to `main` (or run the **Publish Images** workflow manually) to publish `job-fit-copilot-api` and
+   `job-fit-copilot-web` to `ghcr.io` (make sure both GHCR packages are public, or add registry credentials).
+2. Create a free-tier PostgreSQL database on [Neon](https://neon.tech) (`pgvector` is built in) and run:
+
+```bash
+NEON_CONNECTION_STRING="Host=...;Database=neondb;Username=...;Password=...;SSL Mode=Require" \
+OPENAI_API_KEY="sk-..." \
+./deploy/azure/deploy.sh
+```
+
 | Endpoint | Purpose |
 |---|---|
 | `GET /alive` | Liveness: the process is running (200 even if the database is down) |
