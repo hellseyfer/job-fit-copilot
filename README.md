@@ -7,7 +7,7 @@ and drafts a cover letter that a human approves before it is used.
 Built as a production-minded portfolio project: spec-driven development, observability from day one,
 health probes, automated tests and evals in CI.
 
-> Status: **stage 9 — observability and cost**. See the [roadmap](#roadmap).
+> Status: **stage 10 — containerized deployment**. See the [roadmap](#roadmap).
 
 ## Stack
 
@@ -64,6 +64,16 @@ API_URL=http://127.0.0.1:12283 npm start
 
 Open `http://localhost:4200` to ingest CVs/projects, run analyses, inspect cited evidence and token/cost `usage`, and
 approve or revise cover letters.
+
+### Containerized deployment (Docker Compose)
+
+To run the full stack (`postgres` with pgvector, `api`, and `web` on `http://localhost:4200`) in containers without Aspire:
+
+```bash
+cp .env.example .env
+# Set OPENAI_API_KEY in .env (or switch LLM_PROVIDER=ollama and use --profile ollama)
+docker compose up --build
+```
 
 | Endpoint | Purpose |
 |---|---|
