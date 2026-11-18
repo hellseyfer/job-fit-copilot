@@ -1,0 +1,51 @@
+name: Publish Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/JobFit.Api/**'
+      - 'src/JobFit.ServiceDefaults/**'
+      - 'src/JobFit.Web/**'
+      - '.github/workflows/publish-images.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lowercase owner
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/JobFit.Api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/job-fit-copilot-api:latest
+            ghcr.io/${{ env.OWNER }}/job-fit-copilot-api:${{ github.sha }}
+
+      - name: Build and push Web UI image
+        uses: docker/build-push-action@v6
+        with:
+          context: src/JobFit.Web
+          file: src/JobFit.Web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/job-fit-copilot-web:latest
+            ghcr.io/${{ env.OWNER }}/job-fit-copilot-web:${{ github.sha }}
