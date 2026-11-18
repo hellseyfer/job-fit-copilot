@@ -154,7 +154,12 @@
           <div class="card">
             <div class="section-head">
               <h2>Cover Letter</h2>
-              <span class="muted">Attempts: {{ letter.attempts }}</span>
+              <div class="section-actions">
+                <span class="muted">Attempts: {{ letter.attempts }}</span>
+                <button type="button" class="copy-btn" (click)="copyCoverLetter()">
+                  {{ copied() ? 'Copied!' : 'Copy Cover Letter' }}
+                </button>
+              </div>
             </div>
 
             <div class="letter-sentences">
@@ -255,6 +260,11 @@
               }
             </details>
           }
+        </div>
+      } @else if (analyzing()) {
+        <div class="card empty-state">
+          <h2>Analyzing Job Fit...</h2>
+          <p class="muted">Extracting requirements, retrieving CV evidence, and running the workflow.</p>
         </div>
       } @else {
         <div class="card empty-state">

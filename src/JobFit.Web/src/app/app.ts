@@ -6,6 +6,7 @@ import { JobFitApiService } from './job-fit-api.service';
 import {
   AnalyzeJobResponse,
   ApiError,
+  CoverLetter,
   DocumentKind,
   KnowledgeDocumentResponse,
 } from './models';
@@ -35,6 +36,7 @@ export class App {
 
   readonly feedback = signal('');
   readonly deciding = signal(false);
+  readonly copied = signal(false);
 
   readonly error = signal<ApiError | null>(null);
 
@@ -78,6 +80,9 @@ export class App {
 
   analyze(): void {
     this.error.set(null);
+    this.analysisResult.set(null);
+    this.feedback.set('');
+    this.copied.set(false);
     this.analyzing.set(true);
     const kind = this.analysisKind();
     this.api
@@ -95,6 +100,25 @@ export class App {
       });
   }
 
+  plainCoverLetter(letter: CoverLetter): string {
+    return letter.sentences
+      .map((s) => s.text.replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '').trim())
+      .filter((text) => text.length > 0)
+      .join(' ');
+  }
+
+  async copyCoverLetter(): Promise<void> {
+    const letter = this.analysisResult()?.coverLetter;
+    if (!letter) {
+      return;
+    }
+
+    const plainText = this.plainCoverLetter(letter);
+    await navigator.clipboard?.writeText(plainText);
+    this.copied.set(true);
+    setTimeout(() => this.copied.set(false), 2000);
+  }
+
   decide(approved: boolean, withFeedback: boolean): void {
     const run = this.analysisResult();
     if (!run) {
@@ -102,6 +126,7 @@ export class App {
     }
 
     this.error.set(null);
+    this.copied.set(false);
     this.deciding.set(true);
     const comment = withFeedback ? this.feedback().trim() : undefined;
     this.api

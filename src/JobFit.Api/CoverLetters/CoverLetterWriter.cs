@@ -18,7 +18,7 @@ public sealed class CoverLetterWriter(IChatClient chatClient)
         words, years or skills from <requirement> or <reviewer_feedback> unless they are also written in the cited
         <evidence> item.
 
-        Write the letter as:
+        Write the letter as a non-empty "sentences" array (never return an empty array):
         1. One generic opening "connective" sentence ("evidence": []) expressing interest in the <job_title> role,
            without naming any skills, employers, degrees or languages.
         2. Separate "claim" sentences (at least 3), each summarizing facts from a single <evidence n="..."> item:
@@ -70,15 +70,37 @@ public sealed class CoverLetterWriter(IChatClient chatClient)
     }
 
     // Asks the model for the sentences of `next`, which carries the stage, evidence, attempt and feedback.
+    // Retries once if a small model returns an empty sentences list under strict JSON-schema decoding.
     private async Task<LetterDraft> DraftAsync(LetterDraft next, string prompt, CancellationToken cancellationToken)
+    {
+        List<ChatMessage> messages = [new(ChatRole.System, SystemPrompt), new(ChatRole.User, prompt)];
+        var written = await RequestDraftAsync(messages, temperature: 0f, cancellationToken);
+
+        if (!HasNonBlankSentence(written))
+        {
+            messages.Add(new(ChatRole.User,
+                "Your previous response returned an empty \"sentences\" list. Write the cover letter now with at least " +
+                "5 non-empty items in \"sentences\": 1 opening connective, at least 3 claim sentences citing <evidence> items, " +
+                "and 1 closing connective."));
+            written = await RequestDraftAsync(messages, temperature: 0.2f, cancellationToken);
+        }
+
+        var sentences = CoverLetterGrounding.AlignEvidence(
+            CoverLetterGrounding.Sentences(written, next.Evidence.Count),
+            next.Evidence);
+        return next with { Sentences = sentences, Verdicts = null };
+    }
+
+    private async Task<WrittenLetter> RequestDraftAsync(
+        IList<ChatMessage> messages, float temperature, CancellationToken cancellationToken)
     {
         ChatResponse<WrittenLetter> response;
         try
         {
             response = await chatClient.GetResponseAsync<WrittenLetter>(
-                [new(ChatRole.System, SystemPrompt), new(ChatRole.User, prompt)],
+                messages,
                 RequirementExtractor.JsonOptions,
-                new ChatOptions { Temperature = 0 },
+                new ChatOptions { Temperature = temperature },
                 useJsonSchemaResponseFormat: true,
                 cancellationToken);
         }
@@ -92,11 +114,11 @@ public sealed class CoverLetterWriter(IChatClient chatClient)
             throw new CoverLetterFailedException("The cover letter writer output does not match the expected structure.");
         }
 
-        var sentences = CoverLetterGrounding.AlignEvidence(
-            CoverLetterGrounding.Sentences(written, next.Evidence.Count),
-            next.Evidence);
-        return next with { Sentences = sentences, Verdicts = null };
+        return written;
     }
+
+    private static bool HasNonBlankSentence(WrittenLetter written) =>
+        (written.Sentences ?? []).Any(s => !string.IsNullOrWhiteSpace(s?.Text));
 
     private static string Prompt(FitStage stage, IReadOnlyList<EvidenceItem> evidence, string? feedback)
     {
