@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: jobfit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jobfit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  api:
+    build:
+      context: .
+      dockerfile: src/JobFit.Api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__jobfit: Host=postgres;Port=5432;Database=jobfit;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      Llm__Provider: ${LLM_PROVIDER:-openai}
+      ConnectionStrings__chat: ${CHAT_CONNECTION_STRING:-Endpoint=https://api.openai.com/v1;Key=${OPENAI_API_KEY:-missing};Model=${LLM_MODEL:-gpt-4o-mini}}
+      ConnectionStrings__embeddings: ${EMBEDDINGS_CONNECTION_STRING:-Endpoint=https://api.openai.com/v1;Key=${OPENAI_API_KEY:-missing};Model=${EMBEDDING_MODEL:-text-embedding-3-small}}
+      Observability__Langfuse__Endpoint: ${LANGFUSE_ENDPOINT:-https://cloud.langfuse.com/api/public/otel}
+      Observability__Langfuse__PublicKey: ${LANGFUSE_PUBLIC_KEY:-}
+      Observability__Langfuse__SecretKey: ${LANGFUSE_SECRET_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  web:
+    build:
+      context: src/JobFit.Web
+      dockerfile: Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "4200:80"
+
+volumes:
+  pgdata:
+  ollama_data:

@@ -40,3 +40,15 @@ jobs:
         with:
           name: test-results
           path: TestResults
+
+  container-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API container image
+        run: docker build -f src/JobFit.Api/Dockerfile -t jobfit-api:ci .
+
+      - name: Build Web UI container image
+        run: docker build -f src/JobFit.Web/Dockerfile -t jobfit-web:ci src/JobFit.Web

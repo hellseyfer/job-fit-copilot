@@ -20,20 +20,7 @@ public static class CostCalculator
             return 0;
         }
 
-        ModelPrice? price = null;
-        if (options?.ModelPricing is { Count: > 0 } configured)
-        {
-            foreach (var (key, value) in configured)
-            {
-                if (string.Equals(key, modelId, StringComparison.OrdinalIgnoreCase))
-                {
-                    price = value;
-                    break;
-                }
-            }
-        }
-
-        price ??= DefaultPricing.GetValueOrDefault(modelId);
+        var price = FindPrice(modelId, options?.ModelPricing) ?? FindPrice(modelId, DefaultPricing);
         if (price is null)
         {
             return 0;
@@ -41,5 +28,31 @@ public static class CostCalculator
 
         var cost = (inputTokens * price.InputPerMillionUsd + outputTokens * price.OutputPerMillionUsd) / 1_000_000d;
         return Math.Round(cost, 8, MidpointRounding.AwayFromZero);
+    }
+
+    private static ModelPrice? FindPrice(string modelId, IDictionary<string, ModelPrice>? table)
+    {
+        if (table is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        ModelPrice? bestPrefixMatch = null;
+        var bestPrefixLength = -1;
+        foreach (var (key, value) in table)
+        {
+            if (string.Equals(key, modelId, StringComparison.OrdinalIgnoreCase))
+            {
+                return value;
+            }
+
+            if (modelId.StartsWith($"{key}-", StringComparison.OrdinalIgnoreCase) && key.Length > bestPrefixLength)
+            {
+                bestPrefixMatch = value;
+                bestPrefixLength = key.Length;
+            }
+        }
+
+        return bestPrefixMatch;
     }
 }
