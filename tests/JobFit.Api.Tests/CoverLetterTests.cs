@@ -222,3 +222,33 @@ public class CoverLetterVerifierTests
             verifier.VerifyAsync(CoverLetterGroundingTests.Draft(1, null), CancellationToken.None));
     }
 }
+
+public class CoverLetterWriterTests
+{
+    [Fact]
+    public async Task Empty_draft_retries_once_and_succeeds_when_retry_has_sentences()
+    {
+        var calls = 0;
+        var chat = FakeChatClient.Responding(_ => ++calls == 1
+            ? """{"sentences":[]}"""
+            : """{"sentences":[{"text":"I am excited to apply.","kind":"connective","evidence":[]},{"text":"I tuned PostgreSQL.","kind":"claim","evidence":[1]}]}""");
+
+        var draft = await new CoverLetterWriter(chat).WriteAsync(CoverLetterGroundingTests.Stage(), CancellationToken.None);
+
+        Assert.Equal(2, chat.CallCount);
+        Assert.Equal(2, draft.Sentences.Count);
+        Assert.Equal("I am excited to apply.", draft.Sentences[0].Text);
+    }
+
+    [Fact]
+    public async Task Empty_draft_fails_when_retry_also_returns_no_sentences()
+    {
+        var chat = FakeChatClient.Returning("""{"sentences":[]}""");
+
+        var exception = await Assert.ThrowsAsync<CoverLetterFailedException>(() =>
+            new CoverLetterWriter(chat).WriteAsync(CoverLetterGroundingTests.Stage(), CancellationToken.None));
+
+        Assert.Equal(2, chat.CallCount);
+        Assert.Equal("The cover letter draft has no sentences.", exception.Message);
+    }
+}
